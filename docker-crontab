@@ -1,0 +1,13 @@
+# Blu-ray Tracker Cron Schedule
+# Run scraper every 6 hours
+0 */6 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db >> /app/data/scraper.log 2>&1
+
+# Alternative schedules (commented out):
+# Every 12 hours:
+# 0 */12 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db >> /app/data/scraper.log 2>&1
+
+# Once daily at 2 AM:
+# 0 2 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db >> /app/data/scraper.log 2>&1
+
+# Twice daily at 2 AM and 2 PM:
+# 0 2,14 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db >> /app/data/scraper.log 2>&1
