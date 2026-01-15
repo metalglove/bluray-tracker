@@ -1,0 +1,44 @@
+#pragma once
+
+#include "scraper.hpp"
+#include "../../infrastructure/network_client.hpp"
+#include <gumbo.h>
+
+namespace bluray::application::scraper {
+
+/**
+ * Scraper implementation for Amazon.nl
+ */
+class AmazonNlScraper : public IScraper {
+public:
+    std::optional<domain::Product> scrape(std::string_view url) override;
+    bool canHandle(std::string_view url) const override;
+    std::string_view getSource() const override { return "amazon.nl"; }
+
+private:
+    struct ScrapedData {
+        std::string title;
+        double price{0.0};
+        bool in_stock{false};
+        bool is_uhd_4k{false};
+        std::string image_url;
+    };
+
+    std::optional<ScrapedData> parseHtml(const std::string& html);
+
+    // Helper methods for parsing specific elements
+    std::optional<std::string> extractTitle(GumboNode* root);
+    std::optional<double> extractPrice(GumboNode* root);
+    bool extractStockStatus(GumboNode* root);
+    bool extractUhdStatus(GumboNode* root, const std::string& title);
+    std::optional<std::string> extractImageUrl(GumboNode* root);
+
+    // Recursive search helpers
+    GumboNode* findElementById(GumboNode* node, const char* id);
+    GumboNode* findElementByClass(GumboNode* node, const char* class_name);
+    std::vector<GumboNode*> findElementsByClass(GumboNode* node, const char* class_name);
+
+    infrastructure::NetworkClient client_;
+};
+
+} // namespace bluray::application::scraper
