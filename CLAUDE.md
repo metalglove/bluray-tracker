@@ -5,7 +5,12 @@
 **Blu-ray Tracker** is a modern C++20 application for tracking Blu-ray/UHD 4K movie prices and availability on Dutch e-commerce sites (Amazon.nl and Bol.com). The application periodically scrapes product information, detects meaningful changes (price drops, stock updates), and sends notifications via Discord webhooks or email.
 
 ### Key Features
-- Web-based dashboard (Crow framework)
+- **Modern Web-based Dashboard** (Crow framework with embedded SPA)
+  - Sleek, responsive UI with dark/light mode toggle
+  - Real-time updates via WebSocket
+  - Single-page application with client-side routing
+  - Animated statistics and gradient cards
+  - Modal dialogs and toast notifications
 - Periodic scraping with configurable delays
 - Wishlist management with price thresholds
 - Personal collection tracking
@@ -90,8 +95,123 @@ bluray-tracker/
      - Observer (Notifiers observe ChangeDetector)
 
 4. **Presentation Layer** (`src/presentation/`)
-   - Web interface using Crow framework
-   - REST API + embedded HTML dashboard
+   - Modern web interface using Crow framework
+   - REST API + WebSocket support
+   - Embedded HTML/CSS/JS Single-Page Application (SPA)
+   - Real-time updates via WebSocket broadcasting
+
+---
+
+## Web Frontend UI
+
+### Modern User Interface
+
+The web frontend is a **sleek, modern single-page application** embedded directly in the C++ binary. It provides an intuitive, responsive interface for managing your Blu-ray collection and wishlist.
+
+#### Design Features
+
+**Visual Design**
+- Purple/indigo gradient color scheme (`#667eea` to `#764ba2`)
+- Dark mode (default) with light mode toggle
+- Smooth CSS transitions and animations
+- Card-based layouts with elegant hover effects
+- Modern Inter font family with system fallbacks
+- Professional shadows and backdrop blur effects
+
+**UI Components**
+- Animated gradient statistics cards
+- Modal dialogs for adding/editing items
+- Toast notifications for user feedback
+- Loading spinners for async operations
+- Empty states with helpful call-to-action prompts
+- Pagination controls with page numbers
+- Connection status indicator with pulse animation
+
+**Responsive Design**
+- Mobile-friendly with collapsible sidebar
+- Touch-optimized buttons and forms
+- Adaptive grid layouts
+- Font size scaling for small screens
+
+#### Application Structure
+
+**Dashboard Page**
+- 4 animated statistics cards:
+  - Wishlist items count
+  - Collection items count
+  - In-stock items count
+  - UHD 4K items count
+- Quick actions section:
+  - Add to Wishlist button
+  - Add to Collection button
+  - Manual scrape trigger
+
+**Wishlist Management**
+- Paginated table view with product images
+- Current price vs. target price comparison
+- Stock status badges (In Stock / Out of Stock)
+- Format badges (UHD 4K / Blu-ray)
+- Source identification (Amazon.nl / Bol.com)
+- Edit and delete actions per item
+- Search bar and filter dropdowns (UI ready)
+- Real-time updates when prices/stock change
+
+**Collection Management**
+- Similar paginated table view
+- Purchase price display
+- Notes field for each item
+- Quick add and delete functionality
+- Empty state with guidance
+
+**Settings Page**
+- Configure scrape delay (seconds)
+- Discord webhook URL management
+- Complete SMTP configuration:
+  - Server, port, user credentials
+  - From and To email addresses
+- Save functionality with success feedback
+
+#### Real-Time Updates (WebSocket)
+
+The application uses WebSocket connections for real-time updates:
+
+**Connection Management**
+- Automatic connection on page load
+- Connection status indicator in header
+- Automatic reconnection on disconnect (5-second delay)
+- Thread-safe broadcast to all connected clients
+
+**Live Update Events**
+- `wishlist_added` - New item added to wishlist
+- `wishlist_updated` - Wishlist item edited
+- `wishlist_deleted` - Wishlist item removed
+- `collection_added` - New item added to collection
+- `collection_deleted` - Collection item removed
+- `scrape_completed` - Scraping finished with item count
+
+**User Experience**
+- Toast notifications appear for all updates
+- Tables automatically refresh with new data
+- Dashboard statistics update in real-time
+- No page reloads required
+
+#### Theme System
+
+Users can toggle between dark and light modes:
+
+**Dark Mode (Default)**
+- Background: `#0f172a` (slate-900)
+- Cards: `#1e293b` (slate-800)
+- Text: `#f1f5f9` (slate-100)
+- Borders: `#334155` (slate-700)
+
+**Light Mode**
+- Background: `#f8fafc` (slate-50)
+- Cards: `#ffffff` (white)
+- Text: `#0f172a` (slate-900)
+- Borders: `#e2e8f0` (slate-200)
+
+Theme preference is saved to `localStorage` and persists across sessions.
 
 ### Key Design Decisions
 
@@ -389,45 +509,293 @@ sqlite3 bluray-tracker.db "INSERT INTO wishlist (url, title, desired_max_price, 
 
 #### Wishlist
 
-- `GET /api/wishlist?page=1&size=20` - List wishlist (paginated)
-- `POST /api/wishlist` - Add item
+- **`GET /api/wishlist?page=1&size=20`** - List wishlist (paginated)
+
+  Response:
   ```json
   {
-    "url": "https://...",
+    "items": [...],
+    "page": 1,
+    "page_size": 20,
+    "total_count": 42,
+    "total_pages": 3,
+    "has_next": true,
+    "has_previous": false
+  }
+  ```
+
+  Each item includes:
+  - `id`, `url`, `title`
+  - `current_price`, `desired_max_price`
+  - `in_stock`, `is_uhd_4k`
+  - `image_url`, `local_image_path`, `source`
+  - `notify_on_price_drop`, `notify_on_stock`
+  - `created_at`, `last_checked` (formatted timestamps)
+
+- **`POST /api/wishlist`** - Add item
+
+  Request:
+  ```json
+  {
+    "url": "https://www.amazon.nl/...",
     "title": "Movie Title",
     "desired_max_price": 19.99,
     "notify_on_price_drop": true,
     "notify_on_stock": true
   }
   ```
-- `PUT /api/wishlist/{id}` - Update item
-- `DELETE /api/wishlist/{id}` - Remove item
+
+  Response: `201 Created` with item JSON
+
+  **Note**: Source is auto-detected from URL (amazon.nl or bol.com)
+
+  **WebSocket Event**: Broadcasts `wishlist_added` to all clients
+
+- **`PUT /api/wishlist/{id}`** - Update item
+
+  Request:
+  ```json
+  {
+    "title": "Updated Title",
+    "desired_max_price": 15.99,
+    "notify_on_price_drop": true,
+    "notify_on_stock": false
+  }
+  ```
+
+  Response: `200 OK` with updated item JSON
+
+  **WebSocket Event**: Broadcasts `wishlist_updated` to all clients
+
+- **`DELETE /api/wishlist/{id}`** - Remove item
+
+  Response: `200 OK` on success, `404 Not Found` if item doesn't exist
+
+  **WebSocket Event**: Broadcasts `wishlist_deleted` with `id` to all clients
 
 #### Collection
 
-- `GET /api/collection?page=1&size=20` - List collection (paginated)
-- `POST /api/collection` - Add item
+- **`GET /api/collection?page=1&size=20`** - List collection (paginated)
+
+  Response format identical to wishlist endpoint
+
+  Each item includes:
+  - `id`, `url`, `title`
+  - `purchase_price`, `is_uhd_4k`
+  - `image_url`, `local_image_path`, `source`
+  - `notes`
+  - `purchased_at`, `added_at` (formatted timestamps)
+
+- **`POST /api/collection`** - Add item
+
+  Request:
   ```json
   {
-    "url": "https://...",
+    "url": "https://www.bol.com/...",
     "title": "Movie Title",
     "purchase_price": 15.99,
     "is_uhd_4k": true,
     "notes": "Purchased on sale"
   }
   ```
-- `DELETE /api/collection/{id}` - Remove item
+
+  Response: `201 Created` with item JSON
+
+  **WebSocket Event**: Broadcasts `collection_added` to all clients
+
+- **`DELETE /api/collection/{id}`** - Remove item
+
+  Response: `200 OK` on success, `404 Not Found` if item doesn't exist
+
+  **WebSocket Event**: Broadcasts `collection_deleted` with `id` to all clients
+
+#### Dashboard & Statistics
+
+- **`GET /api/stats`** - Get dashboard statistics
+
+  Response:
+  ```json
+  {
+    "wishlist_count": 42,
+    "collection_count": 87,
+    "in_stock_count": 15,
+    "uhd_4k_count": 23
+  }
+  ```
 
 #### Actions
 
-- `POST /api/scrape` - Trigger manual scrape
+- **`POST /api/scrape`** - Trigger manual scrape
+
+  Response on success:
   ```json
   { "success": true, "processed": 15 }
   ```
 
-#### Static
+  Response on failure:
+  ```json
+  { "success": false, "error": "Error message" }
+  ```
 
-- `GET /cache/{filename}` - Serve cached product image
+  **WebSocket Event**: Broadcasts `scrape_completed` with `processed` count to all clients
+
+#### Settings
+
+- **`GET /api/settings`** - Get configuration
+
+  Response:
+  ```json
+  {
+    "scrape_delay_seconds": 8,
+    "discord_webhook_url": "https://discord.com/api/webhooks/...",
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": "587",
+    "smtp_user": "user@gmail.com",
+    "smtp_from": "from@example.com",
+    "smtp_to": "to@example.com",
+    "web_port": "8080",
+    "cache_directory": "./cache"
+  }
+  ```
+
+  **Note**: `smtp_pass` is never returned in GET requests
+
+- **`PUT /api/settings`** - Update configuration
+
+  Request (all fields optional):
+  ```json
+  {
+    "scrape_delay_seconds": 10,
+    "discord_webhook_url": "https://...",
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": "587",
+    "smtp_user": "user@gmail.com",
+    "smtp_pass": "password",
+    "smtp_from": "from@example.com",
+    "smtp_to": "to@example.com"
+  }
+  ```
+
+  Response: `200 OK` with "Settings updated" message
+
+#### Static Files
+
+- **`GET /cache/{filename}`** - Serve cached product image
+
+  Response: Image file (JPEG, PNG, GIF, WebP)
+
+  Headers:
+  - `Content-Type`: Appropriate image MIME type
+  - `Cache-Control`: `public, max-age=31536000` (1 year)
+
+---
+
+### WebSocket API
+
+#### Connection
+
+- **Endpoint**: `WS /ws`
+- **Protocol**: `ws://` or `wss://` (follows HTTP/HTTPS)
+
+#### Connection Lifecycle
+
+**Client connects:**
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+ws.onopen = () => {
+  console.log('Connected to live updates');
+};
+
+ws.onclose = () => {
+  console.log('Disconnected');
+  // Implement auto-reconnect
+  setTimeout(initWebSocket, 5000);
+};
+
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  handleUpdate(data);
+};
+```
+
+#### Message Format
+
+All messages are JSON-encoded with a `type` field:
+
+**Wishlist Events:**
+```json
+{
+  "type": "wishlist_added",
+  "item": { /* WishlistItem JSON */ }
+}
+```
+
+```json
+{
+  "type": "wishlist_updated",
+  "item": { /* Updated WishlistItem JSON */ }
+}
+```
+
+```json
+{
+  "type": "wishlist_deleted",
+  "id": 42
+}
+```
+
+**Collection Events:**
+```json
+{
+  "type": "collection_added",
+  "item": { /* CollectionItem JSON */ }
+}
+```
+
+```json
+{
+  "type": "collection_deleted",
+  "id": 87
+}
+```
+
+**Scraping Events:**
+```json
+{
+  "type": "scrape_completed",
+  "processed": 15
+}
+```
+
+#### Broadcasting Behavior
+
+- **Thread-safe**: Uses `std::mutex` to protect connection list
+- **Broadcast to all**: When any client performs an action (add/edit/delete), all connected clients receive the update
+- **Server-initiated**: Server broadcasts when scheduled scraping detects changes
+
+#### Usage Example
+
+```javascript
+function handleUpdate(data) {
+  switch (data.type) {
+    case 'wishlist_updated':
+      // Refresh wishlist table
+      loadWishlist(currentPage);
+      showToast('Wishlist updated', 'info');
+      break;
+    case 'scrape_completed':
+      showToast(`Scrape completed! Processed ${data.processed} items`, 'success');
+      loadDashboardStats();
+      break;
+    // ... handle other event types
+  }
+}
+```
 
 ---
 
@@ -591,6 +959,6 @@ sqlite> SELECT key, value FROM config;
 
 ---
 
-**Last Updated**: 2026-01-15
-**Version**: 1.0.0
+**Last Updated**: 2026-01-16
+**Version**: 2.0.0 (Modern UI with WebSocket support)
 **Maintainer**: metalglove
