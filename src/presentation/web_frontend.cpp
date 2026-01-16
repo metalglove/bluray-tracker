@@ -210,8 +210,7 @@ void WebFrontend::setupCollectionRoutes() {
             int id = repo.add(item);
             if (id > 0) {
                 item.id = id;
-                auto json = collectionItemToJson(item);
-                return crow::response(201, json);
+                return crow::response(201, collectionItemToJson(item));
             }
 
             return crow::response(500, "Failed to add item");
