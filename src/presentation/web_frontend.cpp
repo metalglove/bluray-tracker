@@ -103,8 +103,7 @@ void WebFrontend::setupWishlistRoutes() {
             int id = repo.add(item);
             if (id > 0) {
                 item.id = id;
-                auto json = wishlistItemToJson(item);
-                return crow::response(201, json);
+                return crow::response(201, wishlistItemToJson(item));
             }
 
             return crow::response(500, "Failed to add item");
