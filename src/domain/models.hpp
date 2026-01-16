@@ -96,6 +96,17 @@ struct ChangeEvent {
 };
 
 /**
+ * Price history entry for tracking price changes over time
+ */
+struct PriceHistoryEntry {
+    int id{0};
+    int wishlist_id{0};
+    double price{0.0};
+    bool in_stock{false};
+    std::chrono::system_clock::time_point recorded_at;
+};
+
+/**
  * Pagination parameters for queries
  */
 struct PaginationParams {

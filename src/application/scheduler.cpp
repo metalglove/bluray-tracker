@@ -1,6 +1,7 @@
 #include "scheduler.hpp"
 #include "../infrastructure/config_manager.hpp"
 #include "../infrastructure/logger.hpp"
+#include "../infrastructure/repositories/price_history_repository.hpp"
 #include "scraper/scraper.hpp"
 #include <format>
 #include <thread>
@@ -149,6 +150,16 @@ void Scheduler::updateWishlistItem(
         );
         return;
     }
+
+    // Insert price history entry
+    SqlitePriceHistoryRepository price_history_repo;
+    domain::PriceHistoryEntry history_entry{
+        .wishlist_id = updated_item.id,
+        .price = updated_item.current_price,
+        .in_stock = updated_item.in_stock,
+        .recorded_at = updated_item.last_checked
+    };
+    price_history_repo.add(history_entry);
 
     // Log changes
     if (!changes.empty()) {

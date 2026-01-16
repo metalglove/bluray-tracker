@@ -68,6 +68,7 @@ set(SOURCES
     src/infrastructure/image_cache.cpp
     src/infrastructure/repositories/wishlist_repository.cpp
     src/infrastructure/repositories/collection_repository.cpp
+    src/infrastructure/repositories/price_history_repository.cpp
     src/application/scraper/scraper.cpp
     src/application/scraper/amazon_nl_scraper.cpp
     src/application/scraper/bol_com_scraper.cpp

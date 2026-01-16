@@ -205,6 +205,30 @@ void WebFrontend::setupWishlistRoutes() {
             return crow::response(404, "Item not found");
         }
     );
+
+    // Get price history for a wishlist item
+    CROW_ROUTE(app_, "/api/wishlist/<int>/price-history")
+        .methods("GET"_method)(
+        [this](const crow::request& req, int id) {
+            SqlitePriceHistoryRepository price_history_repo;
+
+            int days = 180;
+            if (req.url_params.get("days")) {
+                days = std::stoi(req.url_params.get("days"));
+            }
+
+            auto history = price_history_repo.findByWishlistId(id, days);
+
+            crow::json::wvalue response;
+            response["items"] = crow::json::wvalue::list();
+
+            for (size_t i = 0; i < history.size(); ++i) {
+                response["items"][i] = priceHistoryEntryToJson(history[i]);
+            }
+
+            return crow::response(200, response);
+        }
+    );
 }
 
 void WebFrontend::setupCollectionRoutes() {
@@ -512,6 +536,16 @@ crow::json::wvalue WebFrontend::collectionItemToJson(const domain::CollectionIte
     json["notes"] = item.notes;
     json["purchased_at"] = timePointToString(item.purchased_at);
     json["added_at"] = timePointToString(item.added_at);
+    return json;
+}
+
+crow::json::wvalue WebFrontend::priceHistoryEntryToJson(const domain::PriceHistoryEntry& entry) {
+    crow::json::wvalue json;
+    json["id"] = entry.id;
+    json["wishlist_id"] = entry.wishlist_id;
+    json["price"] = entry.price;
+    json["in_stock"] = entry.in_stock;
+    json["recorded_at"] = timePointToString(entry.recorded_at);
     return json;
 }
 
@@ -1188,6 +1222,7 @@ std::string WebFrontend::renderSPA() {
             50% { opacity: 0.5; }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body data-theme="dark">
     <!-- Sidebar -->
@@ -1533,6 +1568,19 @@ std::string WebFrontend::renderSPA() {
         </div>
     </div>
 
+    <!-- Price History Modal -->
+    <div class="modal" id="priceHistoryModal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="priceHistoryTitle">Price History</h3>
+                <button class="close-modal" onclick="closeModal('priceHistoryModal')">×</button>
+            </div>
+            <div style="padding: 20px;">
+                <canvas id="priceHistoryChart" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -1778,6 +1826,7 @@ std::string WebFrontend::renderSPA() {
                     <td>${item.source}</td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-info" style="padding: 0.5rem 0.75rem;" onclick="viewPriceHistory(${item.id}, '${escapeHtml(item.title)}')" title="View Price History">📈</button>
                             <button class="btn btn-secondary" style="padding: 0.5rem 0.75rem;" onclick="editWishlistItem(${item.id})">✏️</button>
                             <button class="btn btn-danger" style="padding: 0.5rem 0.75rem;" onclick="deleteWishlistItem(${item.id})">🗑️</button>
                         </div>
@@ -2090,6 +2139,121 @@ std::string WebFrontend::renderSPA() {
 
         function openAddCollectionModal() {
             openModal('addCollectionModal');
+        }
+
+        // Price History
+        let priceHistoryChart = null;
+
+        async function viewPriceHistory(itemId, itemTitle) {
+            try {
+                const response = await fetch(`/api/wishlist/${itemId}/price-history?days=180`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch price history');
+                }
+
+                const data = await response.json();
+
+                if (data.items.length === 0) {
+                    showToast('No price history available yet', 'info');
+                    return;
+                }
+
+                // Set modal title
+                document.getElementById('priceHistoryTitle').textContent = `Price History: ${itemTitle}`;
+
+                // Prepare chart data
+                const labels = data.items.map(entry => {
+                    const date = new Date(entry.recorded_at);
+                    return date.toLocaleDateString();
+                });
+                const prices = data.items.map(entry => entry.price);
+                const stockStatus = data.items.map(entry => entry.in_stock);
+
+                // Point colors based on stock status
+                const pointColors = stockStatus.map(inStock =>
+                    inStock ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'
+                );
+
+                // Destroy existing chart if any
+                if (priceHistoryChart) {
+                    priceHistoryChart.destroy();
+                }
+
+                // Create chart
+                const ctx = document.getElementById('priceHistoryChart').getContext('2d');
+                priceHistoryChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Price (€)',
+                            data: prices,
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: pointColors,
+                            pointBorderColor: pointColors,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: {
+                                    color: getComputedStyle(document.documentElement)
+                                        .getPropertyValue('--text-primary').trim()
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const price = context.parsed.y.toFixed(2);
+                                        const inStock = stockStatus[context.dataIndex];
+                                        return `€${price} (${inStock ? 'In Stock' : 'Out of Stock'})`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '€' + value.toFixed(2);
+                                    },
+                                    color: getComputedStyle(document.documentElement)
+                                        .getPropertyValue('--text-secondary').trim()
+                                },
+                                grid: {
+                                    color: getComputedStyle(document.documentElement)
+                                        .getPropertyValue('--border').trim()
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: getComputedStyle(document.documentElement)
+                                        .getPropertyValue('--text-secondary').trim()
+                                },
+                                grid: {
+                                    color: getComputedStyle(document.documentElement)
+                                        .getPropertyValue('--border').trim()
+                                }
+                            }
+                        }
+                    }
+                });
+
+                openModal('priceHistoryModal');
+            } catch (error) {
+                console.error('Error fetching price history:', error);
+                showToast('Failed to load price history', 'error');
+            }
         }
 
         // Close modals on backdrop click
