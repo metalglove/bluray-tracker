@@ -204,7 +204,7 @@ void WebFrontend::setupCollectionRoutes() {
             item.title = body["title"].s();
             item.purchase_price = body["purchase_price"].d();
             item.is_uhd_4k = body.has("is_uhd_4k") ? body["is_uhd_4k"].b() : false;
-            item.notes = body.has("notes") ? std::string(body["notes"].s()) : "";
+            item.notes = body.has("notes") ? body["notes"].s() : "";
             item.purchased_at = std::chrono::system_clock::now();
             item.added_at = std::chrono::system_clock::now();
 
