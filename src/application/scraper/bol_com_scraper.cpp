@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <regex>
+#include <cstring>
 
 namespace bluray::application::scraper {
 

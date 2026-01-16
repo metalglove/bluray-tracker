@@ -27,6 +27,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # System dependencies (must be installed)
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
+find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
 # Find gumbo-parser (system package)
@@ -91,6 +92,7 @@ target_link_libraries(bluray-tracker PRIVATE
     nlohmann_json::nlohmann_json
     CURL::libcurl
     SQLite::SQLite3
+    OpenSSL::Crypto
     ${GUMBO_LIBRARY}
     Threads::Threads
 )

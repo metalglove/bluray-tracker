@@ -42,7 +42,7 @@ void WebFrontend::setupWishlistRoutes() {
     // Get all wishlist items (paginated)
     CROW_ROUTE(app_, "/api/wishlist")
         .methods("GET"_method)(
-        [](const crow::request& req) {
+        [this](const crow::request& req) {
             SqliteWishlistRepository repo;
 
             int page = 1;
@@ -113,7 +113,7 @@ void WebFrontend::setupWishlistRoutes() {
     // Update wishlist item
     CROW_ROUTE(app_, "/api/wishlist/<int>")
         .methods("PUT"_method)(
-        [](const crow::request& req, int id) {
+        [this](const crow::request& req, int id) {
             auto body = crow::json::load(req.body);
             if (!body) {
                 return crow::response(400, "Invalid JSON");
@@ -287,7 +287,7 @@ void WebFrontend::setupStaticRoutes() {
 }
 
 std::string WebFrontend::renderHomePage() {
-    return R"(<!DOCTYPE html>
+    return R"HTML(<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -392,7 +392,7 @@ std::string WebFrontend::renderHomePage() {
         loadStats();
     </script>
 </body>
-</html>)";
+</html>)HTML";
 }
 
 crow::json::wvalue WebFrontend::wishlistItemToJson(const domain::WishlistItem& item) {
