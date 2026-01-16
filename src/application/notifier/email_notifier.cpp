@@ -2,6 +2,7 @@
 #include "../../infrastructure/logger.hpp"
 #include <format>
 #include <sstream>
+#include <cstring>
 
 namespace bluray::application::notifier {
 

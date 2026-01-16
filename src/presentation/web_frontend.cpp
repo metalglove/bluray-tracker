@@ -42,7 +42,7 @@ void WebFrontend::setupWishlistRoutes() {
     // Get all wishlist items (paginated)
     CROW_ROUTE(app_, "/api/wishlist")
         .methods("GET"_method)(
-        [](const crow::request& req) {
+        [this](const crow::request& req) {
             SqliteWishlistRepository repo;
 
             int page = 1;
@@ -103,7 +103,8 @@ void WebFrontend::setupWishlistRoutes() {
             int id = repo.add(item);
             if (id > 0) {
                 item.id = id;
-                return crow::response(201, wishlistItemToJson(item));
+                auto json = wishlistItemToJson(item);
+                return crow::response(201, json);
             }
 
             return crow::response(500, "Failed to add item");
@@ -113,7 +114,7 @@ void WebFrontend::setupWishlistRoutes() {
     // Update wishlist item
     CROW_ROUTE(app_, "/api/wishlist/<int>")
         .methods("PUT"_method)(
-        [](const crow::request& req, int id) {
+        [this](const crow::request& req, int id) {
             auto body = crow::json::load(req.body);
             if (!body) {
                 return crow::response(400, "Invalid JSON");
@@ -203,14 +204,15 @@ void WebFrontend::setupCollectionRoutes() {
             item.title = body["title"].s();
             item.purchase_price = body["purchase_price"].d();
             item.is_uhd_4k = body.has("is_uhd_4k") ? body["is_uhd_4k"].b() : false;
-            item.notes = body.has("notes") ? body["notes"].s() : "";
+            item.notes = body.has("notes") ? std::string(body["notes"].s()) : "";
             item.purchased_at = std::chrono::system_clock::now();
             item.added_at = std::chrono::system_clock::now();
 
             int id = repo.add(item);
             if (id > 0) {
                 item.id = id;
-                return crow::response(201, collectionItemToJson(item));
+                auto json = collectionItemToJson(item);
+                return crow::response(201, json);
             }
 
             return crow::response(500, "Failed to add item");
@@ -287,7 +289,7 @@ void WebFrontend::setupStaticRoutes() {
 }
 
 std::string WebFrontend::renderHomePage() {
-    return R"(<!DOCTYPE html>
+    return R"HTML(<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -392,7 +394,7 @@ std::string WebFrontend::renderHomePage() {
         loadStats();
     </script>
 </body>
-</html>)";
+</html>)HTML";
 }
 
 crow::json::wvalue WebFrontend::wishlistItemToJson(const domain::WishlistItem& item) {
