@@ -374,7 +374,7 @@ void WebFrontend::setupSettingsRoutes() {
             auto& config = ConfigManager::instance();
 
             crow::json::wvalue response;
-            response["scrape_delay_seconds"] = std::stoi(config.get("scrape_delay_seconds", "8"));
+            response["scrape_delay_seconds"] = config.getInt("scrape_delay_seconds", 8);
             response["discord_webhook_url"] = config.get("discord_webhook_url", "");
             response["smtp_server"] = config.get("smtp_server", "");
             response["smtp_port"] = config.get("smtp_port", "587");
