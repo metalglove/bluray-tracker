@@ -464,9 +464,15 @@ void WebFrontend::setupStaticRoutes() {
 }
 
 std::string WebFrontend::timePointToString(const std::chrono::system_clock::time_point& tp) {
-    auto time_t = std::chrono::system_clock::to_time_t(tp);
+    std::time_t t = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm_buf{};
+#if defined(_WIN32)
+    localtime_s(&tm_buf, &t);
+#else
+    localtime_r(&t, &tm_buf);
+#endif
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+    ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
     return ss.str();
 }
 
