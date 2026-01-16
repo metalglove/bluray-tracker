@@ -409,7 +409,11 @@ void WebFrontend::setupSettingsRoutes() {
                 config.set("smtp_server", body["smtp_server"].s());
             }
             if (body.has("smtp_port")) {
-                config.set("smtp_port", body["smtp_port"].s());
+                int smtp_port = body["smtp_port"].i();
+                if (smtp_port < 1 || smtp_port > 65535) {
+                    return crow::response(400, "Invalid SMTP port");
+                }
+                config.set("smtp_port", std::to_string(smtp_port));
             }
             if (body.has("smtp_user")) {
                 config.set("smtp_user", body["smtp_user"].s());
