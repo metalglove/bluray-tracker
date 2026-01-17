@@ -373,12 +373,23 @@ void WebFrontend::setupReleaseCalendarRoutes() {
             std::tm end_tm = {};
             std::istringstream start_ss(start_date);
             std::istringstream end_ss(end_date);
-            start_ss >> std::get_time(&start_tm, "%Y-%m-%d");
-            end_ss >> std::get_time(&end_tm, "%Y-%m-%d");
 
-            auto start_tp = std::chrono::system_clock::from_time_t(std::mktime(&start_tm));
-            auto end_tp = std::chrono::system_clock::from_time_t(std::mktime(&end_tm));
+            // Validate that date parsing succeeds
+            if (!(start_ss >> std::get_time(&start_tm, "%Y-%m-%d")) ||
+                !(end_ss >> std::get_time(&end_tm, "%Y-%m-%d"))) {
+                return crow::response(400, "Invalid start or end date format, expected YYYY-MM-DD");
+            }
 
+            auto start_time_t = std::mktime(&start_tm);
+            auto end_time_t = std::mktime(&end_tm);
+
+            if (start_time_t == static_cast<std::time_t>(-1) ||
+                end_time_t == static_cast<std::time_t>(-1)) {
+                return crow::response(400, "Invalid start or end date value");
+            }
+
+            auto start_tp = std::chrono::system_clock::from_time_t(start_time_t);
+            auto end_tp = std::chrono::system_clock::from_time_t(end_time_t);
             auto items = repo.findByDateRange(start_tp, end_tp);
 
             crow::json::wvalue response;
