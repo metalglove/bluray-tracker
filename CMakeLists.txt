@@ -6,8 +6,8 @@ project(BluRayTracker
     LANGUAGES CXX
 )
 
-# C++20 requirement
-set(CMAKE_CXX_STANDARD 20)
+# C++17 requirement
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -40,12 +40,25 @@ endif()
 # FetchContent for header-only dependencies
 include(FetchContent)
 
+# Asio (standalone)
+FetchContent_Declare(
+    asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG        asio-1-30-2
+)
+FetchContent_MakeAvailable(asio)
+FetchContent_MakeAvailable(asio)
+set(ASIO_INCLUDE_DIR ${asio_SOURCE_DIR}/asio/include CACHE PATH "Asio include dir" FORCE)
+message(STATUS "ASIO INCLUDE DIR: ${ASIO_INCLUDE_DIR}")
+
 # Crow (web framework)
 FetchContent_Declare(
     Crow
     GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
-    GIT_TAG        v1.0+5
+    GIT_TAG        v1.2.0
 )
+
+set(CROW_USE_BOOST OFF)
 
 # nlohmann/json
 FetchContent_Declare(
@@ -55,7 +68,16 @@ FetchContent_Declare(
 )
 
 # Make dependencies available
+# Make dependencies available
 FetchContent_MakeAvailable(Crow json)
+
+# fmt library (replacement for std::format in C++17)
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG        10.2.1
+)
+FetchContent_MakeAvailable(fmt)
 
 # Source files
 set(SOURCES
@@ -69,6 +91,7 @@ set(SOURCES
     src/infrastructure/repositories/wishlist_repository.cpp
     src/infrastructure/repositories/collection_repository.cpp
     src/infrastructure/repositories/release_calendar_repository.cpp
+    src/infrastructure/repositories/price_history_repository.cpp
     src/application/scraper/scraper.cpp
     src/application/scraper/amazon_nl_scraper.cpp
     src/application/scraper/bol_com_scraper.cpp
@@ -97,6 +120,7 @@ target_link_libraries(bluray-tracker PRIVATE
     OpenSSL::Crypto
     ${GUMBO_LIBRARY}
     Threads::Threads
+    fmt::fmt
 )
 
 # Install target
