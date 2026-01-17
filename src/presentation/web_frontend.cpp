@@ -37,6 +37,7 @@ void WebFrontend::broadcastUpdate(const std::string& message) {
 void WebFrontend::setupRoutes() {
     setupWishlistRoutes();
     setupCollectionRoutes();
+    setupReleaseCalendarRoutes();
     setupActionRoutes();
     setupStaticRoutes();
     setupWebSocketRoute();
@@ -141,12 +142,14 @@ void WebFrontend::setupWishlistRoutes() {
                 item.id = id;
 
                 // Broadcast update via WebSocket
+                auto json_item = wishlistItemToJson(item);
                 crow::json::wvalue ws_msg;
                 ws_msg["type"] = "wishlist_added";
-                ws_msg["item"] = wishlistItemToJson(item);
+                ws_msg["item"] = std::move(json_item);
                 broadcastUpdate(ws_msg.dump());
 
-                return crow::response(201, wishlistItemToJson(item));
+                json_item = wishlistItemToJson(item);
+                return crow::response(201, json_item);
             }
 
             return crow::response(500, "Failed to add item");
@@ -176,12 +179,14 @@ void WebFrontend::setupWishlistRoutes() {
 
             if (repo.update(*item)) {
                 // Broadcast update via WebSocket
+                auto json_item = wishlistItemToJson(*item);
                 crow::json::wvalue ws_msg;
                 ws_msg["type"] = "wishlist_updated";
-                ws_msg["item"] = wishlistItemToJson(*item);
+                ws_msg["item"] = std::move(json_item);
                 broadcastUpdate(ws_msg.dump());
 
-                return crow::response(200, wishlistItemToJson(*item));
+                json_item = wishlistItemToJson(*item);
+                return crow::response(200, json_item);
             }
 
             return crow::response(500, "Failed to update item");
@@ -260,7 +265,7 @@ void WebFrontend::setupCollectionRoutes() {
             item.title = body["title"].s();
             item.purchase_price = body["purchase_price"].d();
             item.is_uhd_4k = body.has("is_uhd_4k") ? body["is_uhd_4k"].b() : false;
-            item.notes = body.has("notes") ? body["notes"].s() : "";
+            item.notes = body.has("notes") ? std::string(body["notes"].s()) : std::string("");
             item.purchased_at = std::chrono::system_clock::now();
             item.added_at = std::chrono::system_clock::now();
 
@@ -278,12 +283,14 @@ void WebFrontend::setupCollectionRoutes() {
                 item.id = id;
 
                 // Broadcast update via WebSocket
+                auto json_item = collectionItemToJson(item);
                 crow::json::wvalue ws_msg;
                 ws_msg["type"] = "collection_added";
-                ws_msg["item"] = collectionItemToJson(item);
+                ws_msg["item"] = std::move(json_item);
                 broadcastUpdate(ws_msg.dump());
 
-                return crow::response(201, collectionItemToJson(item));
+                json_item = collectionItemToJson(item);
+                return crow::response(201, json_item);
             }
 
             return crow::response(500, "Failed to add item");
@@ -299,6 +306,158 @@ void WebFrontend::setupCollectionRoutes() {
                 // Broadcast update via WebSocket
                 crow::json::wvalue ws_msg;
                 ws_msg["type"] = "collection_deleted";
+                ws_msg["id"] = id;
+                broadcastUpdate(ws_msg.dump());
+
+                return crow::response(200, "Item deleted");
+            }
+            return crow::response(404, "Item not found");
+        }
+    );
+}
+
+void WebFrontend::setupReleaseCalendarRoutes() {
+    using namespace repositories;
+
+    // Get all release calendar items (paginated)
+    CROW_ROUTE(app_, "/api/release-calendar")
+        .methods("GET"_method)(
+        [this](const crow::request& req) {
+            SqliteReleaseCalendarRepository repo;
+
+            int page = 1;
+            int page_size = 20;
+
+            if (req.url_params.get("page")) {
+                page = std::stoi(req.url_params.get("page"));
+            }
+            if (req.url_params.get("size")) {
+                page_size = std::stoi(req.url_params.get("size"));
+            }
+
+            domain::PaginationParams params{page, page_size};
+            auto result = repo.findAll(params);
+
+            crow::json::wvalue response;
+            response["items"] = crow::json::wvalue::list();
+            response["page"] = result.page;
+            response["page_size"] = result.page_size;
+            response["total_count"] = result.total_count;
+            response["total_pages"] = result.total_pages();
+            response["has_next"] = result.has_next();
+            response["has_previous"] = result.has_previous();
+
+            for (size_t i = 0; i < result.items.size(); ++i) {
+                response["items"][i] = releaseCalendarItemToJson(result.items[i]);
+            }
+
+            return crow::response(200, response);
+        }
+    );
+
+    // Get release calendar items by date range
+    CROW_ROUTE(app_, "/api/release-calendar/range")
+        .methods("GET"_method)(
+        [this](const crow::request& req) {
+            SqliteReleaseCalendarRepository repo;
+
+            std::string start_date = req.url_params.get("start") ? req.url_params.get("start") : "";
+            std::string end_date = req.url_params.get("end") ? req.url_params.get("end") : "";
+
+            if (start_date.empty() || end_date.empty()) {
+                return crow::response(400, "Missing start or end date");
+            }
+
+            // Parse dates (simple implementation)
+            std::tm start_tm = {};
+            std::tm end_tm = {};
+            std::istringstream start_ss(start_date);
+            std::istringstream end_ss(end_date);
+            start_ss >> std::get_time(&start_tm, "%Y-%m-%d");
+            end_ss >> std::get_time(&end_tm, "%Y-%m-%d");
+
+            auto start_tp = std::chrono::system_clock::from_time_t(std::mktime(&start_tm));
+            auto end_tp = std::chrono::system_clock::from_time_t(std::mktime(&end_tm));
+
+            auto items = repo.findByDateRange(start_tp, end_tp);
+
+            crow::json::wvalue response;
+            response["items"] = crow::json::wvalue::list();
+            response["count"] = items.size();
+
+            for (size_t i = 0; i < items.size(); ++i) {
+                response["items"][i] = releaseCalendarItemToJson(items[i]);
+            }
+
+            return crow::response(200, response);
+        }
+    );
+
+    // Add release calendar item manually
+    CROW_ROUTE(app_, "/api/release-calendar")
+        .methods("POST"_method)(
+        [this](const crow::request& req) {
+            auto body = crow::json::load(req.body);
+            if (!body) {
+                return crow::response(400, "Invalid JSON");
+            }
+
+            SqliteReleaseCalendarRepository repo;
+
+            domain::ReleaseCalendarItem item;
+            item.title = body["title"].s();
+            item.format = body.has("format") ? std::string(body["format"].s()) : std::string("Blu-ray");
+            item.studio = body.has("studio") ? std::string(body["studio"].s()) : std::string("");
+            item.product_url = body.has("product_url") ? std::string(body["product_url"].s()) : std::string("");
+            item.image_url = body.has("image_url") ? std::string(body["image_url"].s()) : std::string("");
+            item.is_uhd_4k = body.has("is_uhd_4k") ? body["is_uhd_4k"].b() : false;
+            item.price = body.has("price") ? body["price"].d() : 0.0;
+            item.notes = body.has("notes") ? std::string(body["notes"].s()) : std::string("");
+
+            // Parse release date
+            if (body.has("release_date")) {
+                std::string date_str = body["release_date"].s();
+                std::tm tm = {};
+                std::istringstream ss(date_str);
+                ss >> std::get_time(&tm, "%Y-%m-%d");
+                item.release_date = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+            } else {
+                item.release_date = std::chrono::system_clock::now();
+            }
+
+            auto now = std::chrono::system_clock::now();
+            item.is_preorder = item.release_date > now;
+            item.created_at = now;
+            item.last_updated = now;
+
+            int id = repo.add(item);
+            if (id > 0) {
+                item.id = id;
+
+                // Broadcast update via WebSocket
+                auto json_item = releaseCalendarItemToJson(item);
+                crow::json::wvalue ws_msg;
+                ws_msg["type"] = "calendar_added";
+                ws_msg["item"] = std::move(json_item);
+                broadcastUpdate(ws_msg.dump());
+
+                json_item = releaseCalendarItemToJson(item);
+                return crow::response(201, json_item);
+            }
+
+            return crow::response(500, "Failed to add item");
+        }
+    );
+
+    // Delete release calendar item
+    CROW_ROUTE(app_, "/api/release-calendar/<int>")
+        .methods("DELETE"_method)(
+        [this](int id) {
+            SqliteReleaseCalendarRepository repo;
+            if (repo.remove(id)) {
+                // Broadcast update via WebSocket
+                crow::json::wvalue ws_msg;
+                ws_msg["type"] = "calendar_deleted";
                 ws_msg["id"] = id;
                 broadcastUpdate(ws_msg.dump());
 
@@ -403,10 +562,10 @@ void WebFrontend::setupSettingsRoutes() {
                 config.set("scrape_delay_seconds", std::to_string(body["scrape_delay_seconds"].i()));
             }
             if (body.has("discord_webhook_url")) {
-                config.set("discord_webhook_url", body["discord_webhook_url"].s());
+                config.set("discord_webhook_url", std::string(body["discord_webhook_url"].s()));
             }
             if (body.has("smtp_server")) {
-                config.set("smtp_server", body["smtp_server"].s());
+                config.set("smtp_server", std::string(body["smtp_server"].s()));
             }
             if (body.has("smtp_port")) {
                 int smtp_port = body["smtp_port"].i();
@@ -416,16 +575,16 @@ void WebFrontend::setupSettingsRoutes() {
                 config.set("smtp_port", std::to_string(smtp_port));
             }
             if (body.has("smtp_user")) {
-                config.set("smtp_user", body["smtp_user"].s());
+                config.set("smtp_user", std::string(body["smtp_user"].s()));
             }
             if (body.has("smtp_pass")) {
-                config.set("smtp_pass", body["smtp_pass"].s());
+                config.set("smtp_pass", std::string(body["smtp_pass"].s()));
             }
             if (body.has("smtp_from")) {
-                config.set("smtp_from", body["smtp_from"].s());
+                config.set("smtp_from", std::string(body["smtp_from"].s()));
             }
             if (body.has("smtp_to")) {
-                config.set("smtp_to", body["smtp_to"].s());
+                config.set("smtp_to", std::string(body["smtp_to"].s()));
             }
 
             return crow::response(200, "Settings updated");
@@ -512,6 +671,25 @@ crow::json::wvalue WebFrontend::collectionItemToJson(const domain::CollectionIte
     json["notes"] = item.notes;
     json["purchased_at"] = timePointToString(item.purchased_at);
     json["added_at"] = timePointToString(item.added_at);
+    return json;
+}
+
+crow::json::wvalue WebFrontend::releaseCalendarItemToJson(const domain::ReleaseCalendarItem& item) {
+    crow::json::wvalue json;
+    json["id"] = item.id;
+    json["title"] = item.title;
+    json["release_date"] = timePointToString(item.release_date);
+    json["format"] = item.format;
+    json["studio"] = item.studio;
+    json["image_url"] = item.image_url;
+    json["local_image_path"] = item.local_image_path;
+    json["product_url"] = item.product_url;
+    json["is_uhd_4k"] = item.is_uhd_4k;
+    json["is_preorder"] = item.is_preorder;
+    json["price"] = item.price;
+    json["notes"] = item.notes;
+    json["created_at"] = timePointToString(item.created_at);
+    json["last_updated"] = timePointToString(item.last_updated);
     return json;
 }
 

@@ -176,10 +176,32 @@ void DatabaseManager::createSchema() {
         )
     )");
 
+    // Release calendar table
+    execute(R"(
+        CREATE TABLE IF NOT EXISTS release_calendar (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            release_date TEXT NOT NULL,
+            format TEXT NOT NULL,
+            studio TEXT,
+            image_url TEXT,
+            local_image_path TEXT,
+            product_url TEXT,
+            is_uhd_4k INTEGER NOT NULL DEFAULT 0,
+            is_preorder INTEGER NOT NULL DEFAULT 0,
+            price REAL,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            last_updated TEXT NOT NULL
+        )
+    )");
+
     // Create indices for better performance
     execute("CREATE INDEX IF NOT EXISTS idx_wishlist_url ON wishlist(url)");
     execute("CREATE INDEX IF NOT EXISTS idx_collection_url ON collection(url)");
     execute("CREATE INDEX IF NOT EXISTS idx_price_history_wishlist ON price_history(wishlist_id)");
+    execute("CREATE INDEX IF NOT EXISTS idx_release_calendar_date ON release_calendar(release_date)");
+    execute("CREATE INDEX IF NOT EXISTS idx_release_calendar_url ON release_calendar(product_url)");
 }
 
 void DatabaseManager::insertDefaultConfig() {

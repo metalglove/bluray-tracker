@@ -65,6 +65,26 @@ struct CollectionItem {
 };
 
 /**
+ * Item in the release calendar
+ */
+struct ReleaseCalendarItem {
+    int id{0};
+    std::string title;
+    std::chrono::system_clock::time_point release_date;
+    std::string format;           // "Blu-ray", "UHD 4K", "3D Blu-ray", etc.
+    std::string studio;
+    std::string image_url;
+    std::string local_image_path;
+    std::string product_url;
+    bool is_uhd_4k{false};
+    bool is_preorder{false};
+    double price{0.0};
+    std::string notes;
+    std::chrono::system_clock::time_point created_at;
+    std::chrono::system_clock::time_point last_updated;
+};
+
+/**
  * Types of changes that can be detected
  */
 enum class ChangeType {
