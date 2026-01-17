@@ -3,8 +3,10 @@
 #include "../domain/models.hpp"
 #include "../domain/change_detector.hpp"
 #include "../infrastructure/repositories/wishlist_repository.hpp"
+#include "../infrastructure/repositories/release_calendar_repository.hpp"
 #include "../infrastructure/image_cache.hpp"
 #include "scraper/scraper.hpp"
+#include "scraper/bluray_com_scraper.hpp"
 #include "notifier/notifier.hpp"
 #include <memory>
 #include <vector>
@@ -25,6 +27,12 @@ public:
      * Returns number of items processed
      */
     int runOnce();
+
+    /**
+     * Scrape release calendar and update database
+     * Returns number of releases found
+     */
+    int scrapeReleaseCalendar();
 
     /**
      * Add notifier to receive change notifications

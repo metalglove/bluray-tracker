@@ -3,6 +3,7 @@
 #include "../application/scheduler.hpp"
 #include "../infrastructure/repositories/wishlist_repository.hpp"
 #include "../infrastructure/repositories/collection_repository.hpp"
+#include "../infrastructure/repositories/release_calendar_repository.hpp"
 #include <crow.h>
 #include <memory>
 #include <mutex>
@@ -38,6 +39,7 @@ private:
     // API endpoints
     void setupWishlistRoutes();
     void setupCollectionRoutes();
+    void setupReleaseCalendarRoutes();
     void setupActionRoutes();
     void setupStaticRoutes();
     void setupWebSocketRoute();
@@ -49,6 +51,7 @@ private:
     // Helper methods
     crow::json::wvalue wishlistItemToJson(const domain::WishlistItem& item);
     crow::json::wvalue collectionItemToJson(const domain::CollectionItem& item);
+    crow::json::wvalue releaseCalendarItemToJson(const domain::ReleaseCalendarItem& item);
     std::string timePointToString(const std::chrono::system_clock::time_point& tp);
 
     crow::SimpleApp app_;
