@@ -114,7 +114,7 @@ int Scheduler::scrapeReleaseCalendar() {
     const int days_ahead = config.getInt("bluray_calendar_days_ahead", 90);
 
     Logger::instance().info(
-        std::format("Scraping release calendar from: {} ({}  days ahead)", calendar_url, days_ahead)
+        std::format("Scraping release calendar from: {} ({} days ahead)", calendar_url, days_ahead)
     );
 
     // Create scraper and fetch calendar
