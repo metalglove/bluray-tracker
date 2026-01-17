@@ -212,9 +212,19 @@ std::string BluRayComScraper::extractText(GumboNode* node) {
     }
 
     // Trim whitespace
-    text.erase(0, text.find_first_not_of(" \n\r\t"));
-    text.erase(text.find_last_not_of(" \n\r\t") + 1);
+    auto start = text.find_first_not_of(" \n\r\t");
+    if (start == std::string::npos) {
+        // String is empty or all whitespace
+        text.clear();
+        return text;
+    }
 
+    text.erase(0, start);
+
+    auto end = text.find_last_not_of(" \n\r\t");
+    if (end != std::string::npos) {
+        text.erase(end + 1);
+    }
     return text;
 }
 
