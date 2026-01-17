@@ -139,7 +139,7 @@ int Scheduler::scrapeReleaseCalendar() {
 
     // Filter releases by date range (only keep upcoming releases within configured days)
     auto now = std::chrono::system_clock::now();
-    auto cutoff_date = now + std::chrono::hours(24 * days_ahead);
+    auto cutoff_date = now + std::chrono::hours(24) * static_cast<std::chrono::hours::rep>(days_ahead);
 
     std::vector<domain::ReleaseCalendarItem> filtered_releases;
     for (auto& release : releases) {
