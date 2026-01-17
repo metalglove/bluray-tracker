@@ -431,6 +431,9 @@ void WebFrontend::setupReleaseCalendarRoutes() {
                 std::tm tm = {};
                 std::istringstream ss(date_str);
                 ss >> std::get_time(&tm, "%Y-%m-%d");
+                if (ss.fail()) {
+                    return crow::response(400, "Invalid release_date format, expected YYYY-MM-DD");
+                }
                 item.release_date = std::chrono::system_clock::from_time_t(std::mktime(&tm));
             } else {
                 item.release_date = std::chrono::system_clock::now();
