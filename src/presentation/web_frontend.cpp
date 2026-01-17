@@ -498,6 +498,35 @@ void WebFrontend::setupActionRoutes() {
         }
     );
 
+    // Trigger release calendar scrape
+    CROW_ROUTE(app_, "/api/scrape-calendar")
+        .methods("POST"_method)(
+        [this]() {
+            Logger::instance().info("Manual calendar scrape triggered via API");
+
+            try {
+                int releases_found = scheduler_->scrapeReleaseCalendar();
+
+                crow::json::wvalue response;
+                response["success"] = true;
+                response["releases_found"] = releases_found;
+
+                // Broadcast calendar scrape completion
+                crow::json::wvalue ws_msg;
+                ws_msg["type"] = "calendar_scrape_completed";
+                ws_msg["releases_found"] = releases_found;
+                broadcastUpdate(ws_msg.dump());
+
+                return crow::response(200, response);
+            } catch (const std::exception& e) {
+                crow::json::wvalue response;
+                response["success"] = false;
+                response["error"] = e.what();
+                return crow::response(500, response);
+            }
+        }
+    );
+
     // Get dashboard stats
     CROW_ROUTE(app_, "/api/stats")
         .methods("GET"_method)(

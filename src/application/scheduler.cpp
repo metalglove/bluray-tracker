@@ -97,6 +97,117 @@ int Scheduler::runOnce() {
     return processed_count;
 }
 
+int Scheduler::scrapeReleaseCalendar() {
+    auto& config = ConfigManager::instance();
+
+    // Check if calendar scraping is enabled
+    const bool enabled = config.getInt("bluray_calendar_enabled", 1) != 0;
+    if (!enabled) {
+        Logger::instance().info("Release calendar scraping is disabled");
+        return 0;
+    }
+
+    const std::string calendar_url = config.get(
+        "bluray_calendar_url",
+        "https://www.blu-ray.com/movies/releasedates.php"
+    );
+    const int days_ahead = config.getInt("bluray_calendar_days_ahead", 90);
+
+    Logger::instance().info(
+        std::format("Scraping release calendar from: {} ({}  days ahead)", calendar_url, days_ahead)
+    );
+
+    // Create scraper and fetch calendar
+    scraper::BluRayComScraper scraper;
+    std::vector<domain::ReleaseCalendarItem> releases;
+
+    try {
+        releases = scraper.scrapeReleaseCalendar(calendar_url);
+    } catch (const std::exception& e) {
+        Logger::instance().error(
+            std::format("Failed to scrape release calendar: {}", e.what())
+        );
+        return 0;
+    }
+
+    if (releases.empty()) {
+        Logger::instance().warning("No releases found in calendar");
+        return 0;
+    }
+
+    Logger::instance().info(std::format("Found {} releases", releases.size()));
+
+    // Filter releases by date range (only keep upcoming releases within configured days)
+    auto now = std::chrono::system_clock::now();
+    auto cutoff_date = now + std::chrono::hours(24 * days_ahead);
+
+    std::vector<domain::ReleaseCalendarItem> filtered_releases;
+    for (auto& release : releases) {
+        if (release.release_date >= now && release.release_date <= cutoff_date) {
+            // Cache image if available
+            if (!release.image_url.empty()) {
+                auto cached_path = image_cache_->cacheImage(release.image_url);
+                if (cached_path) {
+                    release.local_image_path = *cached_path;
+                }
+            }
+            filtered_releases.push_back(release);
+        }
+    }
+
+    Logger::instance().info(
+        std::format("Filtered to {} upcoming releases (within {} days)",
+                   filtered_releases.size(), days_ahead)
+    );
+
+    // Update database
+    SqliteReleaseCalendarRepository repo;
+
+    // Clear old releases (older than today)
+    repo.removeOlderThan(now);
+
+    int added_count = 0;
+    int updated_count = 0;
+
+    for (const auto& release : filtered_releases) {
+        // Check if release already exists (by URL if available)
+        if (!release.product_url.empty()) {
+            auto existing = repo.findByUrl(release.product_url);
+            if (existing) {
+                // Update existing release
+                auto updated = *existing;
+                updated.title = release.title;
+                updated.release_date = release.release_date;
+                updated.format = release.format;
+                updated.studio = release.studio;
+                updated.image_url = release.image_url;
+                updated.local_image_path = release.local_image_path;
+                updated.is_uhd_4k = release.is_uhd_4k;
+                updated.is_preorder = release.is_preorder;
+                updated.price = release.price;
+                updated.last_updated = std::chrono::system_clock::now();
+
+                if (repo.update(updated)) {
+                    ++updated_count;
+                }
+                continue;
+            }
+        }
+
+        // Add new release
+        if (repo.add(release) > 0) {
+            ++added_count;
+        }
+    }
+
+    Logger::instance().info(
+        std::format("Calendar update complete: {} added, {} updated",
+                   added_count, updated_count)
+    );
+
+    return static_cast<int>(filtered_releases.size());
+}
+
 Scheduler::ScrapeResult Scheduler::scrapeProduct(const std::string& url) {
     ScrapeResult result;
 

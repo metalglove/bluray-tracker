@@ -7,6 +7,7 @@
 #include <regex>
 #include <sstream>
 #include <iomanip>
+#include <cstring>
 #include <gumbo.h>
 
 namespace bluray::application::scraper {
@@ -53,28 +54,204 @@ std::vector<domain::ReleaseCalendarItem> BluRayComScraper::parseReleaseCalendarP
         return items;
     }
 
-    // The blu-ray.com release calendar page typically has a table with releases
-    // We'll look for table rows containing release information
-    // This is a basic implementation that may need adjustment based on actual HTML structure
+    // Parse the page structure
+    // Blu-ray.com typically uses table rows for releases or div containers
+    parseTableReleases(output->root, items);
 
-    // For now, create a placeholder implementation that can be refined once we can access the page
-    // The structure typically includes:
-    // - Release date
-    // - Title with link
-    // - Format (Blu-ray, UHD 4K, 3D, etc.)
-    // - Studio
-    // - Cover image
-    // - Price
+    // If no items found in tables, try div-based layout
+    if (items.empty()) {
+        parseDivReleases(output->root, items);
+    }
 
-    // TODO: Implement actual HTML parsing based on blu-ray.com structure
-    // This requires testing with actual page content
-    infrastructure::Logger::instance().warning(
-        "BluRayComScraper parsing is not yet fully implemented. "
-        "Manual testing required to determine HTML structure."
+    infrastructure::Logger::instance().info(
+        std::format("Parsed {} release calendar items from HTML", items.size())
     );
 
     gumbo_destroy_output(&kGumboDefaultOptions, output);
     return items;
+}
+
+void BluRayComScraper::parseTableReleases(GumboNode* node, std::vector<domain::ReleaseCalendarItem>& items) {
+    if (node->type != GUMBO_NODE_ELEMENT) {
+        return;
+    }
+
+    GumboElement* element = &node->v.element;
+
+    // Look for table rows
+    if (element->tag == GUMBO_TAG_TR) {
+        auto item = extractReleaseFromTableRow(node);
+        if (item) {
+            items.push_back(*item);
+        }
+    }
+
+    // Recursively process children
+    GumboVector* children = &element->children;
+    for (unsigned int i = 0; i < children->length; ++i) {
+        parseTableReleases(static_cast<GumboNode*>(children->data[i]), items);
+    }
+}
+
+void BluRayComScraper::parseDivReleases(GumboNode* node, std::vector<domain::ReleaseCalendarItem>& items) {
+    if (node->type != GUMBO_NODE_ELEMENT) {
+        return;
+    }
+
+    GumboElement* element = &node->v.element;
+
+    // Look for div containers that might contain release info
+    if (element->tag == GUMBO_TAG_DIV) {
+        auto item = extractReleaseFromDiv(node);
+        if (item) {
+            items.push_back(*item);
+        }
+    }
+
+    // Recursively process children
+    GumboVector* children = &element->children;
+    for (unsigned int i = 0; i < children->length; ++i) {
+        parseDivReleases(static_cast<GumboNode*>(children->data[i]), items);
+    }
+}
+
+std::optional<domain::ReleaseCalendarItem> BluRayComScraper::extractReleaseFromTableRow(GumboNode* tr_node) {
+    if (tr_node->type != GUMBO_NODE_ELEMENT || tr_node->v.element.tag != GUMBO_TAG_TR) {
+        return std::nullopt;
+    }
+
+    std::string release_date_str, title, format, studio, image_url, product_url, price_str;
+
+    // Extract data from table cells (td elements)
+    GumboVector* children = &tr_node->v.element.children;
+    std::vector<std::string> cell_texts;
+
+    for (unsigned int i = 0; i < children->length; ++i) {
+        GumboNode* cell = static_cast<GumboNode*>(children->data[i]);
+        if (cell->type == GUMBO_NODE_ELEMENT && cell->v.element.tag == GUMBO_TAG_TD) {
+            std::string text = extractText(cell);
+            cell_texts.push_back(text);
+
+            // Look for links and images in cells
+            auto link = findFirstElement(cell, GUMBO_TAG_A);
+            if (link && product_url.empty()) {
+                product_url = getAttributeValue(link, "href");
+            }
+
+            auto img = findFirstElement(cell, GUMBO_TAG_IMG);
+            if (img && image_url.empty()) {
+                image_url = getAttributeValue(img, "src");
+            }
+        }
+    }
+
+    // Typical column structure: [Date, Cover Image, Title, Format, Studio, Price]
+    // Adjust indices based on actual site structure
+    if (cell_texts.size() >= 3) {
+        // Flexible parsing - look for date-like patterns
+        for (const auto& text : cell_texts) {
+            if (!text.empty()) {
+                // Try to identify what each field is
+                if (release_date_str.empty() && (text.find("20") != std::string::npos ||
+                    text.find("Jan") != std::string::npos || text.find("Feb") != std::string::npos)) {
+                    release_date_str = text;
+                } else if (title.empty() && text.length() > 10 && product_url.empty() == false) {
+                    title = text;
+                } else if (format.empty() && (text.find("Blu-ray") != std::string::npos ||
+                    text.find("4K") != std::string::npos || text.find("UHD") != std::string::npos)) {
+                    format = text;
+                } else if (price_str.empty() && (text.find("$") != std::string::npos ||
+                    text.find("€") != std::string::npos || std::isdigit(text[0]))) {
+                    price_str = text;
+                }
+            }
+        }
+
+        // Only create item if we have at least title and date
+        if (!title.empty() && !release_date_str.empty()) {
+            if (format.empty()) format = "Blu-ray";
+            return parseReleaseItem(title, release_date_str, format, studio, image_url, product_url, price_str);
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<domain::ReleaseCalendarItem> BluRayComScraper::extractReleaseFromDiv(GumboNode* div_node) {
+    // Similar extraction logic for div-based layouts
+    // This is a simplified version - would need to be adapted based on actual HTML structure
+    if (div_node->type != GUMBO_NODE_ELEMENT) {
+        return std::nullopt;
+    }
+
+    std::string title = extractText(div_node);
+    if (title.length() < 5) {
+        return std::nullopt; // Too short to be a real title
+    }
+
+    // Look for links and dates within the div
+    auto link = findFirstElement(div_node, GUMBO_TAG_A);
+    std::string product_url = link ? getAttributeValue(link, "href") : "";
+
+    // For now, return nullopt as div parsing needs more specific implementation
+    return std::nullopt;
+}
+
+std::string BluRayComScraper::extractText(GumboNode* node) {
+    if (node->type == GUMBO_NODE_TEXT) {
+        return std::string(node->v.text.text);
+    }
+    if (node->type != GUMBO_NODE_ELEMENT) {
+        return "";
+    }
+
+    std::string text;
+    GumboVector* children = &node->v.element.children;
+    for (unsigned int i = 0; i < children->length; ++i) {
+        text += extractText(static_cast<GumboNode*>(children->data[i]));
+    }
+
+    // Trim whitespace
+    text.erase(0, text.find_first_not_of(" \n\r\t"));
+    text.erase(text.find_last_not_of(" \n\r\t") + 1);
+
+    return text;
+}
+
+GumboNode* BluRayComScraper::findFirstElement(GumboNode* node, GumboTag tag) {
+    if (node->type != GUMBO_NODE_ELEMENT) {
+        return nullptr;
+    }
+
+    if (node->v.element.tag == tag) {
+        return node;
+    }
+
+    GumboVector* children = &node->v.element.children;
+    for (unsigned int i = 0; i < children->length; ++i) {
+        GumboNode* result = findFirstElement(static_cast<GumboNode*>(children->data[i]), tag);
+        if (result) {
+            return result;
+        }
+    }
+
+    return nullptr;
+}
+
+std::string BluRayComScraper::getAttributeValue(GumboNode* node, const char* attr_name) {
+    if (node->type != GUMBO_NODE_ELEMENT) {
+        return "";
+    }
+
+    GumboVector* attributes = &node->v.element.attributes;
+    for (unsigned int i = 0; i < attributes->length; ++i) {
+        GumboAttribute* attr = static_cast<GumboAttribute*>(attributes->data[i]);
+        if (std::strcmp(attr->name, attr_name) == 0) {
+            return std::string(attr->value);
+        }
+    }
+
+    return "";
 }
 
 std::optional<domain::ReleaseCalendarItem> BluRayComScraper::parseReleaseItem(

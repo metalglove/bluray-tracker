@@ -228,7 +228,10 @@ void DatabaseManager::insertDefaultConfig() {
         ('web_port', '8080'),
         ('cache_directory', './cache'),
         ('log_file', './bluray-tracker.log'),
-        ('log_level', 'info')
+        ('log_level', 'info'),
+        ('bluray_calendar_url', 'https://www.blu-ray.com/movies/releasedates.php'),
+        ('bluray_calendar_enabled', '1'),
+        ('bluray_calendar_days_ahead', '90')
     )");
 
     Logger::instance().info("Default configuration inserted");

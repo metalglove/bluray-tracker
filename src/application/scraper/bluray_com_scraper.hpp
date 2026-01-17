@@ -4,6 +4,7 @@
 #include <string_view>
 #include <vector>
 #include <optional>
+#include <gumbo.h>
 
 namespace bluray::application::scraper {
 
@@ -38,6 +39,41 @@ private:
      * Parse the release calendar page HTML
      */
     std::vector<domain::ReleaseCalendarItem> parseReleaseCalendarPage(const std::string& html);
+
+    /**
+     * Parse releases from table rows
+     */
+    void parseTableReleases(GumboNode* node, std::vector<domain::ReleaseCalendarItem>& items);
+
+    /**
+     * Parse releases from div containers
+     */
+    void parseDivReleases(GumboNode* node, std::vector<domain::ReleaseCalendarItem>& items);
+
+    /**
+     * Extract release info from a table row
+     */
+    std::optional<domain::ReleaseCalendarItem> extractReleaseFromTableRow(GumboNode* tr_node);
+
+    /**
+     * Extract release info from a div container
+     */
+    std::optional<domain::ReleaseCalendarItem> extractReleaseFromDiv(GumboNode* div_node);
+
+    /**
+     * Extract text content from a node
+     */
+    std::string extractText(GumboNode* node);
+
+    /**
+     * Find first element of specified tag
+     */
+    GumboNode* findFirstElement(GumboNode* node, GumboTag tag);
+
+    /**
+     * Get attribute value from a node
+     */
+    std::string getAttributeValue(GumboNode* node, const char* attr_name);
 
     /**
      * Parse a single release item from HTML
