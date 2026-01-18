@@ -1,32 +1,12 @@
 #include "collection_repository.hpp"
 #include "../database_manager.hpp"
 #include "../logger.hpp"
+#include "../input_validation.hpp"
 #include <fmt/format.h>
 #include <iomanip>
 #include <sstream>
-#include <algorithm>
 
 namespace bluray::infrastructure::repositories {
-
-namespace {
-// Whitelist for sort_by values to prevent SQL injection
-constexpr std::array<std::string_view, 2> VALID_SORT_FIELDS = {"date", "price"};
-
-// Whitelist for sort_order values
-constexpr std::array<std::string_view, 2> VALID_SORT_ORDERS = {"asc", "desc"};
-
-/**
- * Validates that a value is in the allowed list
- * @return true if value is in the whitelist, false otherwise
- */
-bool isValidValue(std::string_view value,
-                  std::span<const std::string_view> whitelist) {
-  return std::any_of(whitelist.begin(), whitelist.end(),
-                     [&value](std::string_view allowed) {
-                       return value == allowed;
-                     });
-}
-} // namespace
 
 int SqliteCollectionRepository::add(const domain::CollectionItem &item) {
   auto &db = DatabaseManager::instance();
