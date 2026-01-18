@@ -10,6 +10,7 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+.DS_Store
 
 # Build directories
 build/
@@ -25,3 +26,4 @@ cmake-build-*/
 .cache
 
 data/
+cache/
