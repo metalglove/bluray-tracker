@@ -333,7 +333,6 @@ void WebFrontend::setupCollectionRoutes() {
         response["items"] = crow::json::wvalue::list();
         response["page"] = result.page;
         response["page_size"] = result.page_size;
-        response["page_size"] = result.page_size;
         response["total_count"] = result.total_count;
         response["total_value"] = result.total_value;
         response["total_pages"] = result.total_pages();
