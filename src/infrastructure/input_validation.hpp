@@ -53,5 +53,23 @@ inline bool isValidValue(std::string_view value,
                      });
 }
 
+/**
+ * Validates that a value is in the allowed list and returns normalized value
+ * @param value The value to validate
+ * @param whitelist The array of allowed values (lowercase)
+ * @param normalized_value Output parameter for the normalized (lowercase) value
+ * @return true if value is in the whitelist, false otherwise
+ */
+template <size_t N>
+inline bool isValidValueNormalized(std::string_view value,
+                                   const std::array<std::string_view, N> &whitelist,
+                                   std::string &normalized_value) {
+  normalized_value = toLower(value);
+  return std::any_of(whitelist.begin(), whitelist.end(),
+                     [&normalized_value](std::string_view allowed) {
+                       return normalized_value == allowed;
+                     });
+}
+
 } // namespace validation
 } // namespace bluray::infrastructure
