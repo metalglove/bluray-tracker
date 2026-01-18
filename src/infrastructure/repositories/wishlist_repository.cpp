@@ -9,6 +9,7 @@
 namespace bluray::infrastructure::repositories {
 
 using validation::isValidValueNormalized;
+using validation::sanitizeForLog;
 using validation::VALID_SORT_FIELDS;
 using validation::VALID_SORT_ORDERS;
 using validation::VALID_STOCK_FILTERS;
@@ -174,7 +175,8 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
     std::string filter_stock_lower;
     if (!isValidValueNormalized(params.filter_stock, VALID_STOCK_FILTERS, filter_stock_lower)) {
       Logger::instance().warn(
-          fmt::format("Invalid filter_stock value: {}", params.filter_stock));
+          fmt::format("Invalid filter_stock value: {}", 
+                      sanitizeForLog(params.filter_stock)));
     } else {
       if (filter_stock_lower == "in_stock") {
         conditions.push_back("in_stock = 1");
@@ -201,7 +203,8 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
     std::string sort_by_lower;
     if (!isValidValueNormalized(params.sort_by, VALID_SORT_FIELDS, sort_by_lower)) {
       Logger::instance().warn(
-          fmt::format("Invalid sort_by value: {}, using default", params.sort_by));
+          fmt::format("Invalid sort_by value: {}, using default", 
+                      sanitizeForLog(params.sort_by)));
     } else {
       // Validate sort_order
       std::string direction = "DESC";
@@ -209,7 +212,8 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
         std::string sort_order_lower;
         if (!isValidValueNormalized(params.sort_order, VALID_SORT_ORDERS, sort_order_lower)) {
           Logger::instance().warn(fmt::format(
-              "Invalid sort_order value: {}, using DESC", params.sort_order));
+              "Invalid sort_order value: {}, using DESC", 
+              sanitizeForLog(params.sort_order)));
         } else {
           direction = (sort_order_lower == "desc") ? "DESC" : "ASC";
         }

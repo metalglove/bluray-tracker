@@ -38,6 +38,33 @@ inline std::string toLower(std::string_view str) {
 }
 
 /**
+ * Sanitizes a string for safe logging (removes newlines, limits length)
+ * @param str The string to sanitize
+ * @param max_length Maximum length of the output string (default 100)
+ * @return Sanitized string safe for logging
+ */
+inline std::string sanitizeForLog(std::string_view str, size_t max_length = 100) {
+  std::string result;
+  result.reserve(std::min(str.size(), max_length));
+  
+  for (size_t i = 0; i < str.size() && result.size() < max_length; ++i) {
+    char c = str[i];
+    // Replace newlines, carriage returns, and other control characters with space
+    if (c == '\n' || c == '\r' || c == '\t' || (c >= 0 && c < 32)) {
+      result += ' ';
+    } else {
+      result += c;
+    }
+  }
+  
+  if (str.size() > max_length) {
+    result += "...";
+  }
+  
+  return result;
+}
+
+/**
  * Validates that a value is in the allowed list (case-insensitive)
  * @param value The value to validate
  * @param whitelist The array of allowed values (lowercase)
