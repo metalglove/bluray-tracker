@@ -1,17 +1,12 @@
 #pragma once
 
-#include "../domain/models.hpp"
 #include "../domain/change_detector.hpp"
-#include "../infrastructure/repositories/wishlist_repository.hpp"
-#include "../infrastructure/repositories/release_calendar_repository.hpp"
+#include "../domain/models.hpp"
 #include "../infrastructure/image_cache.hpp"
-#include "scraper/scraper.hpp"
-#include "scraper/bluray_com_scraper.hpp"
+#include "../infrastructure/repositories/wishlist_repository.hpp"
 #include "notifier/notifier.hpp"
+#include <atomic>
 #include <memory>
-#include <vector>
-#include <thread>
-#include <chrono>
 
 namespace bluray::application {
 
@@ -20,47 +15,60 @@ namespace bluray::application {
  */
 class Scheduler {
 public:
-    Scheduler();
+  Scheduler();
 
-    /**
-     * Run scraping once for all wishlist items
-     * Returns number of items processed
-     */
-    int runOnce();
+  /**
+   * Run scraping once for all wishlist items
+   * Returns number of items processed
+   */
+  int runOnce();
 
-    /**
-     * Scrape release calendar and update database
-     * Returns number of releases found
-     */
-    int scrapeReleaseCalendar();
+  /**
+   * Scrape release calendar and update database
+   * Returns number of releases found
+   */
+  int scrapeReleaseCalendar();
 
-    /**
-     * Add notifier to receive change notifications
-     */
-    void addNotifier(std::shared_ptr<notifier::INotifier> notifier);
+  /**
+   * Add notifier to receive change notifications
+   */
+  void addNotifier(std::shared_ptr<notifier::INotifier> notifier);
 
-    /**
-     * Get scrape delay in seconds from config
-     */
-    int getScrapeDelay() const;
+  /**
+   * Get scrape delay in seconds from config
+   */
+  int getScrapeDelay() const;
+
+  struct ScrapeProgress {
+    int processed;
+    int total;
+    bool is_active;
+  };
+
+  /**
+   * Get current scrape progress
+   */
+  ScrapeProgress getScrapeProgress() const;
 
 private:
-    struct ScrapeResult {
-        bool success{false};
-        domain::Product product;
-        std::string error_message;
-    };
+  struct ScrapeResult {
+    bool success{false};
+    domain::Product product;
+    std::string error_message;
+  };
 
-    ScrapeResult scrapeProduct(const std::string& url);
-    void updateWishlistItem(
-        infrastructure::repositories::SqliteWishlistRepository& repo,
-        const domain::WishlistItem& old_item,
-        const domain::Product& product
-    );
+  int delay_seconds_{8};
+  std::atomic<bool> is_running_{false};
+  std::atomic<int> scrape_total_{0};
+  std::atomic<int> scrape_processed_{0};
 
-    domain::ChangeDetector change_detector_;
-    std::unique_ptr<infrastructure::ImageCache> image_cache_;
-    int scrape_delay_seconds_{8};
+  ScrapeResult scrapeProduct(const std::string &url);
+  void updateWishlistItem(
+      infrastructure::repositories::SqliteWishlistRepository &repo,
+      const domain::WishlistItem &old_item, const domain::Product &product);
+
+  domain::ChangeDetector change_detector_;
+  std::unique_ptr<infrastructure::ImageCache> image_cache_;
 };
 
 } // namespace bluray::application

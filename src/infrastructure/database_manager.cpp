@@ -10,7 +10,7 @@ DatabaseManager &DatabaseManager::instance() {
 }
 
 void DatabaseManager::initialize(std::string_view db_path) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   if (initialized_) {
     return;
@@ -76,12 +76,12 @@ int64_t DatabaseManager::lastInsertRowId() const {
   return sqlite3_last_insert_rowid(db_);
 }
 
-std::unique_lock<std::mutex> DatabaseManager::lock() {
-  return std::unique_lock<std::mutex>(mutex_);
+std::unique_lock<std::recursive_mutex> DatabaseManager::lock() {
+  return std::unique_lock<std::recursive_mutex>(mutex_);
 }
 
 void DatabaseManager::close() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   if (db_) {
     sqlite3_close(db_);
@@ -107,6 +107,7 @@ void DatabaseManager::createSchema() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             url TEXT NOT NULL UNIQUE,
             title TEXT NOT NULL,
+            title_locked INTEGER NOT NULL DEFAULT 0,
             current_price REAL NOT NULL DEFAULT 0.0,
             desired_max_price REAL NOT NULL,
             in_stock INTEGER NOT NULL DEFAULT 0,
@@ -179,6 +180,14 @@ void DatabaseManager::createSchema() {
           "release_calendar(release_date)");
   execute("CREATE INDEX IF NOT EXISTS idx_release_calendar_url ON "
           "release_calendar(product_url)");
+
+  // Migrations
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN title_locked INTEGER NOT NULL "
+            "DEFAULT 0");
+  } catch (...) {
+    // Column likely exists
+  }
 }
 
 void DatabaseManager::insertDefaultConfig() {

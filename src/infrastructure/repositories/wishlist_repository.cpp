@@ -13,10 +13,10 @@ int SqliteWishlistRepository::add(const domain::WishlistItem &item) {
 
   auto stmt = db.prepare(R"(
         INSERT INTO wishlist (
-            url, title, current_price, desired_max_price, in_stock, is_uhd_4k,
+            url, title, title_locked, current_price, desired_max_price, in_stock, is_uhd_4k,
             image_url, local_image_path, source, notify_on_price_drop, notify_on_stock,
             created_at, last_checked
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
   const auto created_at_str = timePointToString(item.created_at);
@@ -24,20 +24,21 @@ int SqliteWishlistRepository::add(const domain::WishlistItem &item) {
 
   sqlite3_bind_text(stmt.get(), 1, item.url.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt.get(), 2, item.title.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_double(stmt.get(), 3, item.current_price);
-  sqlite3_bind_double(stmt.get(), 4, item.desired_max_price);
-  sqlite3_bind_int(stmt.get(), 5, item.in_stock ? 1 : 0);
-  sqlite3_bind_int(stmt.get(), 6, item.is_uhd_4k ? 1 : 0);
-  sqlite3_bind_text(stmt.get(), 7, item.image_url.c_str(), -1,
+  sqlite3_bind_int(stmt.get(), 3, item.title_locked ? 1 : 0);
+  sqlite3_bind_double(stmt.get(), 4, item.current_price);
+  sqlite3_bind_double(stmt.get(), 5, item.desired_max_price);
+  sqlite3_bind_int(stmt.get(), 6, item.in_stock ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 7, item.is_uhd_4k ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 8, item.image_url.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 8, item.local_image_path.c_str(), -1,
+  sqlite3_bind_text(stmt.get(), 9, item.local_image_path.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 9, item.source.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 10, item.notify_on_price_drop ? 1 : 0);
-  sqlite3_bind_int(stmt.get(), 11, item.notify_on_stock ? 1 : 0);
-  sqlite3_bind_text(stmt.get(), 12, created_at_str.c_str(), -1,
+  sqlite3_bind_text(stmt.get(), 10, item.source.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 11, item.notify_on_price_drop ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 12, item.notify_on_stock ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 13, created_at_str.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 13, last_checked_str.c_str(), -1,
+  sqlite3_bind_text(stmt.get(), 14, last_checked_str.c_str(), -1,
                     SQLITE_TRANSIENT);
 
   if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
@@ -55,7 +56,7 @@ bool SqliteWishlistRepository::update(const domain::WishlistItem &item) {
 
   auto stmt = db.prepare(R"(
         UPDATE wishlist SET
-            title = ?, current_price = ?, desired_max_price = ?, in_stock = ?,
+            title = ?, title_locked = ?, current_price = ?, desired_max_price = ?, in_stock = ?,
             is_uhd_4k = ?, image_url = ?, local_image_path = ?, source = ?,
             notify_on_price_drop = ?, notify_on_stock = ?, last_checked = ?
         WHERE id = ?
@@ -64,23 +65,32 @@ bool SqliteWishlistRepository::update(const domain::WishlistItem &item) {
   const auto last_checked_str = timePointToString(item.last_checked);
 
   sqlite3_bind_text(stmt.get(), 1, item.title.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_double(stmt.get(), 2, item.current_price);
-  sqlite3_bind_double(stmt.get(), 3, item.desired_max_price);
-  sqlite3_bind_int(stmt.get(), 4, item.in_stock ? 1 : 0);
-  sqlite3_bind_int(stmt.get(), 5, item.is_uhd_4k ? 1 : 0);
-  sqlite3_bind_text(stmt.get(), 6, item.image_url.c_str(), -1,
+  sqlite3_bind_int(stmt.get(), 2, item.title_locked ? 1 : 0);
+  sqlite3_bind_double(stmt.get(), 3, item.current_price);
+  sqlite3_bind_double(stmt.get(), 4, item.desired_max_price);
+  sqlite3_bind_int(stmt.get(), 5, item.in_stock ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 6, item.is_uhd_4k ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 7, item.image_url.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 7, item.local_image_path.c_str(), -1,
+  sqlite3_bind_text(stmt.get(), 8, item.local_image_path.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt.get(), 8, item.source.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 9, item.notify_on_price_drop ? 1 : 0);
-  sqlite3_bind_int(stmt.get(), 10, item.notify_on_stock ? 1 : 0);
-  sqlite3_bind_text(stmt.get(), 11, last_checked_str.c_str(), -1,
+  sqlite3_bind_text(stmt.get(), 9, item.source.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 10, item.notify_on_price_drop ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 11, item.notify_on_stock ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 12, last_checked_str.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 12, item.id);
+  sqlite3_bind_int(stmt.get(), 13, item.id);
 
   return sqlite3_step(stmt.get()) == SQLITE_DONE;
 }
+
+// Helper constant for consistent column ordering
+static const std::string kColumnList =
+    "id, url, title, title_locked, current_price, desired_max_price, in_stock, "
+    "is_uhd_4k, "
+    "image_url, local_image_path, source, notify_on_price_drop, "
+    "notify_on_stock, "
+    "created_at, last_checked";
 
 bool SqliteWishlistRepository::remove(int id) {
   auto &db = DatabaseManager::instance();
@@ -96,7 +106,8 @@ std::optional<domain::WishlistItem> SqliteWishlistRepository::findById(int id) {
   auto &db = DatabaseManager::instance();
   auto lock = db.lock();
 
-  auto stmt = db.prepare("SELECT * FROM wishlist WHERE id = ?");
+  auto query = fmt::format("SELECT {} FROM wishlist WHERE id = ?", kColumnList);
+  auto stmt = db.prepare(query);
   sqlite3_bind_int(stmt.get(), 1, id);
 
   if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
@@ -111,7 +122,9 @@ SqliteWishlistRepository::findByUrl(std::string_view url) {
   auto &db = DatabaseManager::instance();
   auto lock = db.lock();
 
-  auto stmt = db.prepare("SELECT * FROM wishlist WHERE url = ?");
+  auto query =
+      fmt::format("SELECT {} FROM wishlist WHERE url = ?", kColumnList);
+  auto stmt = db.prepare(query);
   sqlite3_bind_text(stmt.get(), 1, std::string(url).c_str(), -1,
                     SQLITE_TRANSIENT);
 
@@ -126,7 +139,9 @@ std::vector<domain::WishlistItem> SqliteWishlistRepository::findAll() {
   auto &db = DatabaseManager::instance();
   auto lock = db.lock();
 
-  auto stmt = db.prepare("SELECT * FROM wishlist ORDER BY created_at DESC");
+  auto query = fmt::format("SELECT {} FROM wishlist ORDER BY created_at DESC",
+                           kColumnList);
+  auto stmt = db.prepare(query);
 
   std::vector<domain::WishlistItem> items;
   while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
@@ -144,12 +159,73 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
   domain::PaginatedResult<domain::WishlistItem> result;
   result.page = params.page;
   result.page_size = params.page_size;
-  result.total_count = count();
 
-  auto stmt = db.prepare(
-      "SELECT * FROM wishlist ORDER BY created_at DESC LIMIT ? OFFSET ?");
-  sqlite3_bind_int(stmt.get(), 1, params.limit());
-  sqlite3_bind_int(stmt.get(), 2, params.offset());
+  std::vector<std::string> conditions;
+  std::vector<std::string> bind_params; // Keep track of what we need to bind
+
+  if (!params.filter_stock.empty()) {
+    if (params.filter_stock == "in_stock") {
+      conditions.push_back("in_stock = 1");
+    } else if (params.filter_stock == "out_of_stock") {
+      conditions.push_back("in_stock = 0");
+    }
+  }
+
+  if (!params.filter_source.empty()) {
+    conditions.push_back("source = ?");
+    bind_params.push_back(params.filter_source);
+  }
+
+  if (!params.search_query.empty()) {
+    conditions.push_back("title LIKE ?");
+    bind_params.push_back("%" + params.search_query + "%");
+  }
+
+  std::string order_clause = "ORDER BY created_at DESC";
+  if (!params.sort_by.empty()) {
+    std::string direction = (params.sort_order == "desc") ? "DESC" : "ASC";
+    if (params.sort_by == "price") {
+      order_clause = "ORDER BY current_price " + direction;
+    } else if (params.sort_by == "title") {
+      order_clause = "ORDER BY title " + direction;
+    } else if (params.sort_by == "date") {
+      order_clause = "ORDER BY created_at " + direction;
+    }
+  }
+
+  std::string where_clause;
+  if (!conditions.empty()) {
+    where_clause = "WHERE " + conditions[0];
+    for (size_t i = 1; i < conditions.size(); ++i) {
+      where_clause += " AND " + conditions[i];
+    }
+  }
+
+  // Count with filters
+  std::string count_query = "SELECT COUNT(*) FROM wishlist " + where_clause;
+  auto count_stmt = db.prepare(count_query);
+
+  int bind_idx = 1;
+  for (const auto &param : bind_params) {
+    sqlite3_bind_text(count_stmt.get(), bind_idx++, param.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  }
+
+  if (sqlite3_step(count_stmt.get()) == SQLITE_ROW) {
+    result.total_count = sqlite3_column_int(count_stmt.get(), 0);
+  }
+
+  auto query = fmt::format("SELECT {} FROM wishlist {} {} LIMIT ? OFFSET ?",
+                           kColumnList, where_clause, order_clause);
+  auto stmt = db.prepare(query);
+
+  bind_idx = 1;
+  for (const auto &param : bind_params) {
+    sqlite3_bind_text(stmt.get(), bind_idx++, param.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  }
+  sqlite3_bind_int(stmt.get(), bind_idx++, params.limit());
+  sqlite3_bind_int(stmt.get(), bind_idx++, params.offset());
 
   while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
     result.items.push_back(fromStatement(stmt.get()));
@@ -178,28 +254,29 @@ SqliteWishlistRepository::fromStatement(sqlite3_stmt *stmt) {
   item.id = sqlite3_column_int(stmt, 0);
   item.url = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
   item.title = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
-  item.current_price = sqlite3_column_double(stmt, 3);
-  item.desired_max_price = sqlite3_column_double(stmt, 4);
-  item.in_stock = sqlite3_column_int(stmt, 5) != 0;
-  item.is_uhd_4k = sqlite3_column_int(stmt, 6) != 0;
+  item.title_locked = sqlite3_column_int(stmt, 3) != 0;
+  item.current_price = sqlite3_column_double(stmt, 4);
+  item.desired_max_price = sqlite3_column_double(stmt, 5);
+  item.in_stock = sqlite3_column_int(stmt, 6) != 0;
+  item.is_uhd_4k = sqlite3_column_int(stmt, 7) != 0;
 
   if (const char *image_url =
-          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7))) {
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 8))) {
     item.image_url = image_url;
   }
   if (const char *local_path =
-          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 8))) {
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 9))) {
     item.local_image_path = local_path;
   }
 
-  item.source = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 9));
-  item.notify_on_price_drop = sqlite3_column_int(stmt, 10) != 0;
-  item.notify_on_stock = sqlite3_column_int(stmt, 11) != 0;
+  item.source = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 10));
+  item.notify_on_price_drop = sqlite3_column_int(stmt, 11) != 0;
+  item.notify_on_stock = sqlite3_column_int(stmt, 12) != 0;
 
   const char *created_at =
-      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 12));
-  const char *last_checked =
       reinterpret_cast<const char *>(sqlite3_column_text(stmt, 13));
+  const char *last_checked =
+      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 14));
 
   item.created_at = stringToTimePoint(created_at);
   item.last_checked = stringToTimePoint(last_checked);

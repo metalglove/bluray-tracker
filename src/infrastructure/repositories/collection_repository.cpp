@@ -136,12 +136,79 @@ SqliteCollectionRepository::findAll(const domain::PaginationParams &params) {
   domain::PaginatedResult<domain::CollectionItem> result;
   result.page = params.page;
   result.page_size = params.page_size;
-  result.total_count = count();
+  std::vector<std::string> conditions;
+  if (!params.filter_source.empty()) {
+    // Validate input to prevent SQL injection (though binding is safer, this is
+    // simple construction) Actually, we should bind this, but for dynamic WHERE
+    // clauses it's tricky with wrapper. For now, let's trust the source filter
+    // is limited to valid enum-like values or bind it. Since we are building
+    // the string, let's use a placeholder.
+    conditions.push_back("source = ?");
+  }
+  if (!params.search_query.empty()) {
+    conditions.push_back("title LIKE ?");
+  }
 
-  auto stmt = db.prepare(
-      "SELECT * FROM collection ORDER BY added_at DESC LIMIT ? OFFSET ?");
-  sqlite3_bind_int(stmt.get(), 1, params.limit());
-  sqlite3_bind_int(stmt.get(), 2, params.offset());
+  std::string order_clause = "ORDER BY added_at DESC";
+  // Collection sorting logic (if needed later), currently defaults to date
+  // added.
+
+  std::string where_clause;
+  if (!conditions.empty()) {
+    where_clause = "WHERE " + conditions[0];
+    for (size_t i = 1; i < conditions.size(); ++i) {
+      where_clause += " AND " + conditions[i];
+    }
+  }
+
+  // Count with filters
+  auto count_stmt =
+      db.prepare("SELECT COUNT(*) FROM collection " + where_clause);
+  int bind_idx = 1;
+  if (!params.filter_source.empty()) {
+    sqlite3_bind_text(count_stmt.get(), bind_idx++,
+                      params.filter_source.c_str(), -1, SQLITE_TRANSIENT);
+  }
+  if (!params.search_query.empty()) {
+    std::string query = "%" + params.search_query + "%";
+    sqlite3_bind_text(count_stmt.get(), bind_idx++, query.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  }
+  if (sqlite3_step(count_stmt.get()) == SQLITE_ROW) {
+    result.total_count = sqlite3_column_int(count_stmt.get(), 0);
+  }
+
+  // Total Value with filters
+  auto value_stmt =
+      db.prepare("SELECT SUM(purchase_price) FROM collection " + where_clause);
+  bind_idx = 1;
+  if (!params.filter_source.empty()) {
+    sqlite3_bind_text(value_stmt.get(), bind_idx++,
+                      params.filter_source.c_str(), -1, SQLITE_TRANSIENT);
+  }
+  if (!params.search_query.empty()) {
+    std::string query = "%" + params.search_query + "%";
+    sqlite3_bind_text(value_stmt.get(), bind_idx++, query.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  }
+  if (sqlite3_step(value_stmt.get()) == SQLITE_ROW) {
+    result.total_value = sqlite3_column_double(value_stmt.get(), 0);
+  }
+
+  auto stmt = db.prepare("SELECT * FROM collection " + where_clause + " " +
+                         order_clause + " LIMIT ? OFFSET ?");
+  bind_idx = 1;
+  if (!params.filter_source.empty()) {
+    sqlite3_bind_text(stmt.get(), bind_idx++, params.filter_source.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  }
+  if (!params.search_query.empty()) {
+    std::string query = "%" + params.search_query + "%";
+    sqlite3_bind_text(stmt.get(), bind_idx++, query.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  }
+  sqlite3_bind_int(stmt.get(), bind_idx++, params.limit());
+  sqlite3_bind_int(stmt.get(), bind_idx++, params.offset());
 
   while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
     result.items.push_back(fromStatement(stmt.get()));
@@ -161,6 +228,19 @@ int SqliteCollectionRepository::count() {
   }
 
   return 0;
+}
+
+double SqliteCollectionRepository::totalValue() {
+  auto &db = DatabaseManager::instance();
+  auto lock = db.lock();
+
+  auto stmt = db.prepare("SELECT SUM(purchase_price) FROM collection");
+
+  if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+    return sqlite3_column_double(stmt.get(), 0);
+  }
+
+  return 0.0;
 }
 
 domain::CollectionItem

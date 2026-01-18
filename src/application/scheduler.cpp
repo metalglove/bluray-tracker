@@ -2,27 +2,30 @@
 #include "../infrastructure/config_manager.hpp"
 #include "../infrastructure/logger.hpp"
 #include "../infrastructure/repositories/price_history_repository.hpp"
+#include "../infrastructure/repositories/release_calendar_repository.hpp"
+#include "scraper/bluray_com_scraper.hpp"
 #include "scraper/scraper.hpp"
+#include <algorithm>
 #include <fmt/format.h>
+#include <future>
 #include <thread>
+#include <vector>
 
 namespace bluray::application {
 
 using namespace infrastructure;
 using namespace repositories;
 
-#include "../infrastructure/repositories/price_history_repository.hpp"
-
 Scheduler::Scheduler() {
   // Load configuration
-  auto &config = ConfigManager::instance();
-  scrape_delay_seconds_ = config.getInt("scrape_delay_seconds", 8);
+  auto &config = infrastructure::ConfigManager::instance();
+  delay_seconds_ = config.getInt("scrape_delay_seconds", 8);
 
   const std::string cache_dir = config.get("cache_directory", "./cache");
   image_cache_ = std::make_unique<ImageCache>(cache_dir);
 
   Logger::instance().info(
-      fmt::format("Scheduler initialized (delay: {}s)", scrape_delay_seconds_));
+      fmt::format("Scheduler initialized (delay: {}s)", delay_seconds_));
 }
 
 void Scheduler::addNotifier(std::shared_ptr<notifier::INotifier> notifier) {
@@ -32,9 +35,18 @@ void Scheduler::addNotifier(std::shared_ptr<notifier::INotifier> notifier) {
   }
 }
 
-int Scheduler::getScrapeDelay() const { return scrape_delay_seconds_; }
+Scheduler::ScrapeProgress Scheduler::getScrapeProgress() const {
+  return {scrape_processed_.load(), scrape_total_.load(), is_running_.load()};
+}
+
+int Scheduler::getScrapeDelay() const { return delay_seconds_; }
 
 int Scheduler::runOnce() {
+  if (is_running_.exchange(true)) {
+    Logger::instance().warning("Scrape already in progress");
+    return 0;
+  }
+
   Logger::instance().info("Starting scrape run");
 
   SqliteWishlistRepository repo;
@@ -42,17 +54,26 @@ int Scheduler::runOnce() {
 
   if (wishlist_items.empty()) {
     Logger::instance().info("No items in wishlist to scrape");
+    is_running_ = false;
     return 0;
   }
 
   Logger::instance().info(
       fmt::format("Scraping {} wishlist items", wishlist_items.size()));
 
-  int processed_count = 0;
-  int success_count = 0;
-  int error_count = 0;
+  scrape_total_ = static_cast<int>(wishlist_items.size());
+  scrape_processed_ = 0;
 
-  for (const auto &item : wishlist_items) {
+  // Counters for this run
+  std::atomic<int> processed_count{0};
+  std::atomic<int> success_count{0};
+  std::atomic<int> error_count{0};
+
+  // Concurrency limit
+  const int kConcurrency = 4;
+  std::vector<std::future<void>> futures;
+
+  auto process_item = [&](domain::WishlistItem item) {
     Logger::instance().debug(fmt::format("Scraping: {}", item.url));
 
     // Scrape product
@@ -61,36 +82,58 @@ int Scheduler::runOnce() {
     if (result.success) {
       // Cache image if available
       if (!result.product.image_url.empty()) {
+        // mutex is handled inside ImageCache
         auto cached_path = image_cache_->cacheImage(result.product.image_url);
         if (cached_path) {
           result.product.local_image_path = *cached_path;
         }
       }
 
-      // Update wishlist item and detect changes
+      // Update wishlist item
       updateWishlistItem(repo, item, result.product);
-      ++success_count;
+      success_count++;
     } else {
       Logger::instance().warning(fmt::format("Failed to scrape {}: {}",
                                              item.url, result.error_message));
-      ++error_count;
+      error_count++;
     }
+    processed_count++;
+    scrape_processed_++;
+  };
 
-    ++processed_count;
+  for (size_t i = 0; i < wishlist_items.size(); ++i) {
+    // Simple limiter: clean up finished futures
+    // Remove ready futures
+    futures.erase(std::remove_if(futures.begin(), futures.end(),
+                                 [](const std::future<void> &f) {
+                                   return f.wait_for(std::chrono::seconds(0)) ==
+                                          std::future_status::ready;
+                                 }),
+                  futures.end());
 
-    // Delay between scrapes (except for last item)
-    if (processed_count < static_cast<int>(wishlist_items.size())) {
-      Logger::instance().debug(
-          fmt::format("Waiting {}s before next scrape", scrape_delay_seconds_));
-      std::this_thread::sleep_for(std::chrono::seconds(scrape_delay_seconds_));
+    if (futures.size() >= kConcurrency) {
+      // Wait for the oldest one to finish to keep pool size stable
+      if (!futures.empty()) {
+        futures.front().wait();
+        futures.erase(futures.begin());
+      }
     }
+    futures.push_back(
+        std::async(std::launch::async, process_item, wishlist_items[i]));
   }
 
-  Logger::instance().info(
-      fmt::format("Scrape run completed: {} processed, {} succeeded, {} failed",
-                  processed_count, success_count, error_count));
+  // Wait for all remaining
+  for (auto &f : futures) {
+    f.wait();
+  }
 
-  return processed_count;
+  is_running_ = false;
+
+  Logger::instance().info(fmt::format(
+      "Scrape run completed: {} processed, {} succeeded, {} failed",
+      processed_count.load(), success_count.load(), error_count.load()));
+
+  return processed_count.load();
 }
 
 int Scheduler::scrapeReleaseCalendar() {
@@ -232,12 +275,30 @@ void Scheduler::updateWishlistItem(SqliteWishlistRepository &repo,
                                    const domain::Product &product) {
   // Create updated item
   domain::WishlistItem updated_item = old_item;
-  updated_item.title = product.title;
+  if (!old_item.title_locked && !product.title.empty()) {
+    updated_item.title = product.title;
+  }
   updated_item.current_price = product.price;
   updated_item.in_stock = product.in_stock;
   updated_item.is_uhd_4k = product.is_uhd_4k;
   updated_item.image_url = product.image_url;
-  updated_item.local_image_path = product.local_image_path;
+  if (!product.local_image_path.empty()) {
+    updated_item.local_image_path = product.local_image_path;
+  } else if (product.image_url != old_item.image_url) {
+    // If URL changed but no new local path, clear the old one to avoid mismatch
+    // Or we could try to re-download here? For now, let's keep it safe.
+    // But typically, if URL changes, we want the new image.
+    // If download failed, we might have an empty local path.
+    // If we keep the old local path, we show the wrong image.
+    // If we clear it, we show the remote URL (fallback).
+    // updated_item.local_image_path = "";
+    // ACTUALLY, the frontend falls back to image_url if local is missing.
+    // So if new URL exists but download failed, we should probably clear local
+    // path if the URL differs.
+    if (!product.image_url.empty()) {
+      updated_item.local_image_path = "";
+    }
+  }
   updated_item.source = product.source;
   updated_item.last_checked = product.last_updated;
 
