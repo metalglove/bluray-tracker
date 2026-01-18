@@ -27,7 +27,7 @@ std::optional<domain::Product> BolComScraper::scrape(std::string_view url) {
   }
 
   // Parse HTML
-  auto scraped_data = parseHtml(response.body);
+  auto scraped_data = parseHtml(response.body, std::string(url));
   if (!scraped_data) {
     Logger::instance().error("Failed to parse Bol.com HTML");
     return std::nullopt;
@@ -51,10 +51,16 @@ std::optional<domain::Product> BolComScraper::scrape(std::string_view url) {
 }
 
 std::optional<BolComScraper::ScrapedData>
-BolComScraper::parseHtml(const std::string &html) {
+BolComScraper::parseHtml(const std::string &html, const std::string &url) {
   GumboOutput *output = gumbo_parse(html.c_str());
   if (!output) {
     return std::nullopt;
+  }
+
+  // Try JSON-LD first (most reliable)
+  if (auto json_data = parseJsonLd(output->root, url)) {
+    gumbo_destroy_output(&kGumboDefaultOptions, output);
+    return json_data;
   }
 
   ScrapedData data;
@@ -87,7 +93,168 @@ BolComScraper::parseHtml(const std::string &html) {
   return data;
 }
 
+std::optional<BolComScraper::ScrapedData>
+BolComScraper::parseJsonLd(GumboNode *root, const std::string &url) {
+  auto script_content = extractJsonLdScript(root);
+  if (!script_content) {
+    return std::nullopt;
+  }
+
+  try {
+    auto j = nlohmann::json::parse(*script_content);
+
+    // Find the correct product/movie item
+    // It could be a single object or a @graph array
+    const nlohmann::json *item = &j;
+
+    // Helper to check if item matches our URL
+    auto matchesUrl = [&](const nlohmann::json &obj) {
+      if (!obj.contains("url"))
+        return false;
+      std::string obj_url = obj["url"].get<std::string>();
+      // Simple containment check as ID should be unique enough
+      // Extract ID from input url if possible
+      std::string id;
+      size_t last_slash = url.find_last_of('/');
+      if (last_slash != std::string::npos) {
+        // Check if ID is after slash
+        std::string check = url.substr(last_slash + 1);
+        if (check.empty() && last_slash > 0) {
+          size_t prev_slash = url.find_last_of('/', last_slash - 1);
+          if (prev_slash != std::string::npos) {
+            check = url.substr(prev_slash + 1, last_slash - prev_slash - 1);
+          }
+        }
+        if (!check.empty() &&
+            std::all_of(check.begin(), check.end(), ::isdigit)) {
+          id = check;
+        }
+      }
+
+      if (!id.empty()) {
+        return obj_url.find(id) != std::string::npos;
+      }
+      return obj_url.find(url) != std::string::npos;
+    };
+
+    // If it's a Movie/Product with workExample (variants)
+    if (item->contains("workExample") && (*item)["workExample"].is_array()) {
+      for (const auto &variant : (*item)["workExample"]) {
+        if (matchesUrl(variant)) {
+          item = &variant;
+          break;
+        }
+      }
+    }
+
+    ScrapedData data;
+
+    if (item->contains("name")) {
+      data.title = (*item)["name"].get<std::string>();
+    } else if (j.contains("name")) {
+      data.title = j["name"].get<std::string>();
+    }
+
+    // Default image from main object if variant lacks it
+    if (item->contains("image")) {
+      auto &img = (*item)["image"];
+      if (img.is_object() && img.contains("url")) {
+        data.image_url = img["url"].get<std::string>();
+      } else if (img.is_string()) {
+        data.image_url = img.get<std::string>();
+      }
+    }
+    if (data.image_url.empty() && j.contains("image")) {
+      auto &img = j["image"];
+      if (img.is_object() && img.contains("url")) {
+        data.image_url = img["url"].get<std::string>();
+      }
+    }
+
+    // UHD Check
+    std::string lower_title = data.title;
+    std::transform(lower_title.begin(), lower_title.end(), lower_title.begin(),
+                   ::tolower);
+    data.is_uhd_4k = lower_title.find("4k") != std::string::npos ||
+                     lower_title.find("uhd") != std::string::npos;
+
+    // Price and Stock
+    if (item->contains("offers")) {
+      const auto &offers = (*item)["offers"];
+      // Could be a single offer or array? Usually single object for specific
+      // variant
+      const nlohmann::json *offer = nullptr;
+
+      if (offers.is_array() && !offers.empty()) {
+        offer = &offers[0]; // Take first offer?
+      } else if (offers.is_object()) {
+        offer = &offers;
+      }
+
+      if (offer) {
+        if (offer->contains("price")) {
+          std::string price_str = (*offer)["price"].get<std::string>();
+          try {
+            data.price = std::stod(price_str);
+          } catch (...) {
+          }
+        }
+        if (offer->contains("availability")) {
+          std::string avail = (*offer)["availability"].get<std::string>();
+          data.in_stock = (avail.find("InStock") != std::string::npos);
+        }
+      }
+    }
+
+    if (!data.title.empty()) {
+      infrastructure::Logger::instance().info(
+          fmt::format("Parsed JSON-LD: Title='{}', Price={:.2f}, Stock={}",
+                      data.title, data.price, data.in_stock));
+      return data;
+    }
+
+  } catch (const std::exception &e) {
+    infrastructure::Logger::instance().warning(
+        fmt::format("JSON-LD parsing failed: {}", e.what()));
+  }
+
+  return std::nullopt;
+}
+
+std::optional<std::string> BolComScraper::extractJsonLdScript(GumboNode *root) {
+  if (root->type != GUMBO_NODE_ELEMENT)
+    return std::nullopt;
+
+  if (root->v.element.tag == GUMBO_TAG_SCRIPT) {
+    GumboAttribute *type_attr =
+        gumbo_get_attribute(&root->v.element.attributes, "type");
+    if (type_attr && std::string(type_attr->value) == "application/ld+json") {
+      if (root->v.element.children.length > 0) {
+        GumboNode *text =
+            static_cast<GumboNode *>(root->v.element.children.data[0]);
+        if (text->type == GUMBO_NODE_TEXT) {
+          return std::string(text->v.text.text);
+        }
+      }
+    }
+  }
+
+  GumboVector *children = &root->v.element.children;
+  for (unsigned int i = 0; i < children->length; ++i) {
+    if (auto result =
+            extractJsonLdScript(static_cast<GumboNode *>(children->data[i]))) {
+      return result;
+    }
+  }
+  return std::nullopt;
+}
+
 std::optional<std::string> BolComScraper::extractTitle(GumboNode *root) {
+  // Try og:title meta tag first
+  if (auto meta_title = extractMetaProperty(root, "og:title")) {
+    return *meta_title;
+  }
+
   // Try h1 tag first (common for product titles)
   if (auto *h1 = findElementByTag(root, GUMBO_TAG_H1)) {
     if (h1->type == GUMBO_NODE_ELEMENT) {
@@ -232,6 +399,11 @@ bool BolComScraper::extractUhdStatus(GumboNode *root,
 }
 
 std::optional<std::string> BolComScraper::extractImageUrl(GumboNode *root) {
+  // Try og:image meta tag first (most reliable)
+  if (auto meta_image = extractMetaProperty(root, "og:image")) {
+    return *meta_image;
+  }
+
   // Find main product image
   const char *image_classes[] = {"product-image", "js_selected_image",
                                  "main-image"};
@@ -256,6 +428,38 @@ std::optional<std::string> BolComScraper::extractImageUrl(GumboNode *root) {
           }
         }
       }
+    }
+  }
+
+  return std::nullopt;
+}
+
+std::optional<std::string>
+BolComScraper::extractMetaProperty(GumboNode *node,
+                                   const std::string &property) {
+  if (node->type != GUMBO_NODE_ELEMENT) {
+    return std::nullopt;
+  }
+
+  if (node->v.element.tag == GUMBO_TAG_META) {
+    GumboAttribute *prop_attr =
+        gumbo_get_attribute(&node->v.element.attributes, "property");
+    if (prop_attr && prop_attr->value &&
+        std::string(prop_attr->value) == property) {
+      GumboAttribute *content_attr =
+          gumbo_get_attribute(&node->v.element.attributes, "content");
+      if (content_attr && content_attr->value) {
+        return std::string(content_attr->value);
+      }
+    }
+  }
+
+  // Recursively search children
+  GumboVector *children = &node->v.element.children;
+  for (unsigned int i = 0; i < children->length; ++i) {
+    if (auto result = extractMetaProperty(
+            static_cast<GumboNode *>(children->data[i]), property)) {
+      return result;
     }
   }
 
