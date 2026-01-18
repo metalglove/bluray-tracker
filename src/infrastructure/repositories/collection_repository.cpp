@@ -4,8 +4,29 @@
 #include <fmt/format.h>
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
 
 namespace bluray::infrastructure::repositories {
+
+namespace {
+// Whitelist for sort_by values to prevent SQL injection
+constexpr std::array<std::string_view, 2> VALID_SORT_FIELDS = {"date", "price"};
+
+// Whitelist for sort_order values
+constexpr std::array<std::string_view, 2> VALID_SORT_ORDERS = {"asc", "desc"};
+
+/**
+ * Validates that a value is in the allowed list
+ * @return true if value is in the whitelist, false otherwise
+ */
+bool isValidValue(std::string_view value,
+                  std::span<const std::string_view> whitelist) {
+  return std::any_of(whitelist.begin(), whitelist.end(),
+                     [&value](std::string_view allowed) {
+                       return value == allowed;
+                     });
+}
+} // namespace
 
 int SqliteCollectionRepository::add(const domain::CollectionItem &item) {
   auto &db = DatabaseManager::instance();
@@ -137,12 +158,9 @@ SqliteCollectionRepository::findAll(const domain::PaginationParams &params) {
   result.page = params.page;
   result.page_size = params.page_size;
   std::vector<std::string> conditions;
+  
+  // filter_source and search_query use parameterized queries (safe)
   if (!params.filter_source.empty()) {
-    // Validate input to prevent SQL injection (though binding is safer, this is
-    // simple construction) Actually, we should bind this, but for dynamic WHERE
-    // clauses it's tricky with wrapper. For now, let's trust the source filter
-    // is limited to valid enum-like values or bind it. Since we are building
-    // the string, let's use a placeholder.
     conditions.push_back("source = ?");
   }
   if (!params.search_query.empty()) {

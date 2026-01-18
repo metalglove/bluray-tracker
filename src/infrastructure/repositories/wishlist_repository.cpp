@@ -4,8 +4,34 @@
 #include <fmt/format.h>
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
 
 namespace bluray::infrastructure::repositories {
+
+namespace {
+// Whitelist for sort_by values to prevent SQL injection
+constexpr std::array<std::string_view, 3> VALID_SORT_FIELDS = {
+    "price", "title", "date"};
+
+// Whitelist for sort_order values
+constexpr std::array<std::string_view, 2> VALID_SORT_ORDERS = {"asc", "desc"};
+
+// Whitelist for filter_stock values
+constexpr std::array<std::string_view, 2> VALID_STOCK_FILTERS = {"in_stock",
+                                                                  "out_of_stock"};
+
+/**
+ * Validates that a value is in the allowed list
+ * @return true if value is in the whitelist, false otherwise
+ */
+bool isValidValue(std::string_view value,
+                  std::span<const std::string_view> whitelist) {
+  return std::any_of(whitelist.begin(), whitelist.end(),
+                     [&value](std::string_view allowed) {
+                       return value == allowed;
+                     });
+}
+} // namespace
 
 int SqliteWishlistRepository::add(const domain::WishlistItem &item) {
   auto &db = DatabaseManager::instance();
@@ -163,14 +189,21 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
   std::vector<std::string> conditions;
   std::vector<std::string> bind_params; // Keep track of what we need to bind
 
+  // Validate and apply stock filter
   if (!params.filter_stock.empty()) {
-    if (params.filter_stock == "in_stock") {
-      conditions.push_back("in_stock = 1");
-    } else if (params.filter_stock == "out_of_stock") {
-      conditions.push_back("in_stock = 0");
+    if (!isValidValue(params.filter_stock, VALID_STOCK_FILTERS)) {
+      Logger::instance().warn(
+          fmt::format("Invalid filter_stock value: {}", params.filter_stock));
+    } else {
+      if (params.filter_stock == "in_stock") {
+        conditions.push_back("in_stock = 1");
+      } else if (params.filter_stock == "out_of_stock") {
+        conditions.push_back("in_stock = 0");
+      }
     }
   }
 
+  // filter_source and search_query use parameterized queries (safe)
   if (!params.filter_source.empty()) {
     conditions.push_back("source = ?");
     bind_params.push_back(params.filter_source);
@@ -181,15 +214,32 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
     bind_params.push_back("%" + params.search_query + "%");
   }
 
+  // Validate and apply sorting with whitelist
   std::string order_clause = "ORDER BY created_at DESC";
   if (!params.sort_by.empty()) {
-    std::string direction = (params.sort_order == "desc") ? "DESC" : "ASC";
-    if (params.sort_by == "price") {
-      order_clause = "ORDER BY current_price " + direction;
-    } else if (params.sort_by == "title") {
-      order_clause = "ORDER BY title " + direction;
-    } else if (params.sort_by == "date") {
-      order_clause = "ORDER BY created_at " + direction;
+    if (!isValidValue(params.sort_by, VALID_SORT_FIELDS)) {
+      Logger::instance().warn(
+          fmt::format("Invalid sort_by value: {}, using default", params.sort_by));
+    } else {
+      // Validate sort_order
+      std::string direction = "DESC";
+      if (!params.sort_order.empty()) {
+        if (!isValidValue(params.sort_order, VALID_SORT_ORDERS)) {
+          Logger::instance().warn(fmt::format(
+              "Invalid sort_order value: {}, using DESC", params.sort_order));
+        } else {
+          direction = (params.sort_order == "desc") ? "DESC" : "ASC";
+        }
+      }
+
+      // Build ORDER BY clause with validated values
+      if (params.sort_by == "price") {
+        order_clause = "ORDER BY current_price " + direction;
+      } else if (params.sort_by == "title") {
+        order_clause = "ORDER BY title " + direction;
+      } else if (params.sort_by == "date") {
+        order_clause = "ORDER BY created_at " + direction;
+      }
     }
   }
 
