@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <span>
 #include <string_view>
 
 namespace bluray::infrastructure {
@@ -26,11 +25,12 @@ constexpr std::array<std::string_view, 2> VALID_STOCK_FILTERS = {
 /**
  * Validates that a value is in the allowed list
  * @param value The value to validate
- * @param whitelist The list of allowed values
+ * @param whitelist The array of allowed values
  * @return true if value is in the whitelist, false otherwise
  */
+template <size_t N>
 inline bool isValidValue(std::string_view value,
-                         std::span<const std::string_view> whitelist) {
+                         const std::array<std::string_view, N> &whitelist) {
   return std::any_of(whitelist.begin(), whitelist.end(),
                      [&value](std::string_view allowed) {
                        return value == allowed;
