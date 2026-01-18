@@ -9,6 +9,7 @@
 namespace bluray::infrastructure::repositories {
 
 using validation::isValidValue;
+using validation::toLower;
 using validation::VALID_SORT_FIELDS;
 using validation::VALID_SORT_ORDERS;
 using validation::VALID_STOCK_FILTERS;
@@ -175,9 +176,10 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
       Logger::instance().warn(
           fmt::format("Invalid filter_stock value: {}", params.filter_stock));
     } else {
-      if (params.filter_stock == "in_stock") {
+      std::string filter_stock_lower = toLower(params.filter_stock);
+      if (filter_stock_lower == "in_stock") {
         conditions.push_back("in_stock = 1");
-      } else if (params.filter_stock == "out_of_stock") {
+      } else if (filter_stock_lower == "out_of_stock") {
         conditions.push_back("in_stock = 0");
       }
     }
@@ -201,6 +203,8 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
       Logger::instance().warn(
           fmt::format("Invalid sort_by value: {}, using default", params.sort_by));
     } else {
+      std::string sort_by_lower = toLower(params.sort_by);
+      
       // Validate sort_order
       std::string direction = "DESC";
       if (!params.sort_order.empty()) {
@@ -208,16 +212,17 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
           Logger::instance().warn(fmt::format(
               "Invalid sort_order value: {}, using DESC", params.sort_order));
         } else {
-          direction = (params.sort_order == "desc") ? "DESC" : "ASC";
+          std::string sort_order_lower = toLower(params.sort_order);
+          direction = (sort_order_lower == "desc") ? "DESC" : "ASC";
         }
       }
 
       // Build ORDER BY clause with validated values
-      if (params.sort_by == "price") {
+      if (sort_by_lower == "price") {
         order_clause = "ORDER BY current_price " + direction;
-      } else if (params.sort_by == "title") {
+      } else if (sort_by_lower == "title") {
         order_clause = "ORDER BY title " + direction;
-      } else if (params.sort_by == "date") {
+      } else if (sort_by_lower == "date") {
         order_clause = "ORDER BY created_at " + direction;
       }
     }

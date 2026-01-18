@@ -40,7 +40,7 @@ inline std::string toLower(std::string_view str) {
 /**
  * Validates that a value is in the allowed list (case-insensitive)
  * @param value The value to validate
- * @param whitelist The array of allowed values (must be lowercase)
+ * @param whitelist The array of allowed values (lowercase)
  * @return true if value is in the whitelist, false otherwise
  */
 template <size_t N>
