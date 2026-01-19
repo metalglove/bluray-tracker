@@ -38,7 +38,7 @@ std::optional<std::string> ImageCache::cacheImage(std::string_view image_url) {
 
   if (!image_data || image_data->empty()) {
     Logger::instance().warning(
-        fmt::format("Failed to download image: {}", image_url));
+        fmt::format("Failed to download image (empty data): {}", image_url));
     return std::nullopt;
   }
 
@@ -57,6 +57,14 @@ std::optional<std::string> ImageCache::cacheImage(std::string_view image_url) {
   file.write(reinterpret_cast<const char *>(image_data->data()),
              static_cast<std::streamsize>(image_data->size()));
   file.close();
+
+  // Verify file size
+  if (std::filesystem::file_size(file_path) == 0) {
+    Logger::instance().error(fmt::format(
+        "Downloaded image is empty, deleting: {}", file_path.string()));
+    std::filesystem::remove(file_path);
+    return std::nullopt;
+  }
 
   Logger::instance().debug(
       fmt::format("Cached image: {} -> {}", image_url, file_path.string()));

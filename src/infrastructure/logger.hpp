@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <fmt/format.h>
 #include <fstream>
 #include <mutex>
@@ -81,7 +80,7 @@ private:
   [[nodiscard]] std::string getCurrentTimestamp() const;
 
   std::ofstream log_file_;
-  std::mutex mutex_;
+  std::recursive_mutex mutex_;
   LogLevel min_level_{LogLevel::Info};
   bool initialized_{false};
 };

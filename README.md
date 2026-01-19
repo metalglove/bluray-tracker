@@ -39,6 +39,10 @@ A modern C++20 application for tracking Blu-ray and UHD 4K movie prices on Dutch
 git clone https://github.com/metalglove/bluray-tracker.git
 cd bluray-tracker
 
+# Ensure data directories exist and are writable
+mkdir -p data cache
+chmod 777 data cache
+
 # Start with docker-compose
 docker-compose up -d
 

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "../application/scheduler.hpp"
-#include "../infrastructure/repositories/wishlist_repository.hpp"
-#include "../infrastructure/repositories/collection_repository.hpp"
-#include "../infrastructure/repositories/release_calendar_repository.hpp"
+
+#include "html_renderer.hpp"
 #include <crow.h>
 #include <memory>
 #include <mutex>
@@ -16,50 +15,54 @@ namespace bluray::presentation {
  */
 class WebFrontend {
 public:
-    explicit WebFrontend(std::shared_ptr<application::Scheduler> scheduler);
+  explicit WebFrontend(std::shared_ptr<application::Scheduler> scheduler);
 
-    /**
-     * Start web server
-     */
-    void run(int port = 8080);
+  /**
+   * Start web server
+   */
+  void run(int port = 8080);
 
-    /**
-     * Stop web server
-     */
-    void stop();
+  /**
+   * Stop web server
+   */
+  void stop();
 
-    /**
-     * Broadcast update to all connected WebSocket clients
-     */
-    void broadcastUpdate(const std::string& message);
+  /**
+   * Broadcast update to all connected WebSocket clients
+   */
+  void broadcastUpdate(const std::string &message);
 
 private:
-    void setupRoutes();
+  void setupRoutes();
 
-    // API endpoints
-    void setupWishlistRoutes();
-    void setupCollectionRoutes();
-    void setupReleaseCalendarRoutes();
-    void setupActionRoutes();
-    void setupStaticRoutes();
-    void setupWebSocketRoute();
-    void setupSettingsRoutes();
+  // API endpoints
+  void setupWishlistRoutes();
+  void setupCollectionRoutes();
+  void setupReleaseCalendarRoutes();
+  void setupActionRoutes();
+  void setupStaticRoutes();
+  void setupWebSocketRoute();
+  void setupSettingsRoutes();
 
-    // HTML rendering
-    std::string renderSPA();
+  // HTML rendering
+  std::string renderSPA();
 
-    // Helper methods
-    crow::json::wvalue wishlistItemToJson(const domain::WishlistItem& item);
-    crow::json::wvalue collectionItemToJson(const domain::CollectionItem& item);
-    crow::json::wvalue releaseCalendarItemToJson(const domain::ReleaseCalendarItem& item);
-    std::string timePointToString(const std::chrono::system_clock::time_point& tp);
+  // Helper methods
+  crow::json::wvalue wishlistItemToJson(const domain::WishlistItem &item);
+  crow::json::wvalue collectionItemToJson(const domain::CollectionItem &item);
+  crow::json::wvalue
+  releaseCalendarItemToJson(const domain::ReleaseCalendarItem &item);
+  std::string
+  timePointToString(const std::chrono::system_clock::time_point &tp);
 
-    crow::SimpleApp app_;
-    std::shared_ptr<application::Scheduler> scheduler_;
+  crow::SimpleApp app_;
+  std::shared_ptr<application::Scheduler> scheduler_;
 
-    // WebSocket connections
-    std::mutex ws_mutex_;
-    std::set<crow::websocket::connection*> ws_connections_;
+  // WebSocket connections
+  std::mutex ws_mutex_;
+  std::set<crow::websocket::connection *> ws_connections_;
+
+  std::unique_ptr<HtmlRenderer> renderer_;
 };
 
 } // namespace bluray::presentation

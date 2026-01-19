@@ -11,7 +11,7 @@ Logger &Logger::instance() {
 }
 
 void Logger::initialize(std::string_view log_file_path) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   if (initialized_) {
     return;
@@ -57,7 +57,7 @@ void Logger::error(std::string_view message) {
 }
 
 void Logger::close() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (log_file_.is_open()) {
     log_impl(LogLevel::Info, "Logger shutting down");
     log_file_.close();
@@ -67,7 +67,7 @@ void Logger::close() {
 Logger::~Logger() { close(); }
 
 void Logger::log_impl(LogLevel level, std::string_view message) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   std::string log_entry = fmt::format("[{}] [{}] {}\n", getCurrentTimestamp(),
                                       levelToString(level), message);

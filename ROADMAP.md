@@ -37,6 +37,8 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 
 ---
 
+ALSO CONSIDER A CALENDER FEATURE TO SHOW FUTURE RELEASES!
+
 ## Phase 1: Quick Wins & Foundations (1-2 Months)
 
 ### 1. Price History Visualization ⭐ **HIGHEST PRIORITY**

@@ -100,6 +100,7 @@ set(SOURCES
     src/application/notifier/email_notifier.cpp
     src/application/scheduler.cpp
     src/presentation/web_frontend.cpp
+    src/presentation/html_renderer.cpp
 )
 
 # Main executable

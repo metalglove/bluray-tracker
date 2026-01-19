@@ -44,6 +44,9 @@ struct WishlistItem {
   // Notification preferences
   bool notify_on_price_drop{true};
   bool notify_on_stock{true};
+
+  // Scraper override protection
+  bool title_locked{false};
 };
 
 /**
@@ -122,6 +125,11 @@ struct ChangeEvent {
 struct PaginationParams {
   int page{1};
   int page_size{20};
+  std::string sort_by;       // "price", "date", "title"
+  std::string sort_order;    // "asc", "desc"
+  std::string filter_stock;  // "in_stock", "out_of_stock"
+  std::string filter_source; // "amazon.nl", "bol.com"
+  std::string search_query;
 
   [[nodiscard]] int offset() const { return (page - 1) * page_size; }
 
@@ -136,8 +144,12 @@ template <typename T> struct PaginatedResult {
   int total_count{0};
   int page{1};
   int page_size{20};
+  double total_value{0.0};
 
   [[nodiscard]] int total_pages() const {
+    if (page_size == 0) {
+      return 1;
+    }
     return (total_count + page_size - 1) / page_size;
   }
 
