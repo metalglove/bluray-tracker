@@ -1,7 +1,7 @@
 #include "wishlist_repository.hpp"
 #include "../database_manager.hpp"
-#include "../logger.hpp"
 #include "../input_validation.hpp"
+#include "../logger.hpp"
 #include <fmt/format.h>
 #include <iomanip>
 #include <sstream>
@@ -173,9 +173,10 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
   // Validate and apply stock filter
   if (!params.filter_stock.empty()) {
     std::string filter_stock_lower;
-    if (!isValidValueNormalized(params.filter_stock, VALID_STOCK_FILTERS, filter_stock_lower)) {
-      Logger::instance().warn(
-          fmt::format("Invalid filter_stock value: {}", 
+    if (!isValidValueNormalized(params.filter_stock, VALID_STOCK_FILTERS,
+                                filter_stock_lower)) {
+      Logger::instance().warning(
+          fmt::format("Invalid filter_stock value: {}",
                       sanitizeForLog(params.filter_stock)));
     } else {
       if (filter_stock_lower == "in_stock") {
@@ -201,19 +202,21 @@ SqliteWishlistRepository::findAll(const domain::PaginationParams &params) {
   std::string order_clause = "ORDER BY created_at DESC";
   if (!params.sort_by.empty()) {
     std::string sort_by_lower;
-    if (!isValidValueNormalized(params.sort_by, VALID_SORT_FIELDS, sort_by_lower)) {
-      Logger::instance().warn(
-          fmt::format("Invalid sort_by value: {}, using default", 
+    if (!isValidValueNormalized(params.sort_by, VALID_SORT_FIELDS,
+                                sort_by_lower)) {
+      Logger::instance().warning(
+          fmt::format("Invalid sort_by value: {}, using default",
                       sanitizeForLog(params.sort_by)));
     } else {
       // Validate sort_order
       std::string direction = "DESC";
       if (!params.sort_order.empty()) {
         std::string sort_order_lower;
-        if (!isValidValueNormalized(params.sort_order, VALID_SORT_ORDERS, sort_order_lower)) {
-          Logger::instance().warn(fmt::format(
-              "Invalid sort_order value: {}, using DESC", 
-              sanitizeForLog(params.sort_order)));
+        if (!isValidValueNormalized(params.sort_order, VALID_SORT_ORDERS,
+                                    sort_order_lower)) {
+          Logger::instance().warning(
+              fmt::format("Invalid sort_order value: {}, using DESC",
+                          sanitizeForLog(params.sort_order)));
         } else {
           direction = (sort_order_lower == "desc") ? "DESC" : "ASC";
         }
