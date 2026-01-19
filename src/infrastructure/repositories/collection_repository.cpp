@@ -1,6 +1,7 @@
 #include "collection_repository.hpp"
 #include "../database_manager.hpp"
 #include "../logger.hpp"
+#include "../input_validation.hpp"
 #include <fmt/format.h>
 #include <iomanip>
 #include <sstream>
@@ -137,12 +138,9 @@ SqliteCollectionRepository::findAll(const domain::PaginationParams &params) {
   result.page = params.page;
   result.page_size = params.page_size;
   std::vector<std::string> conditions;
+  
+  // filter_source and search_query use parameterized queries (safe)
   if (!params.filter_source.empty()) {
-    // Validate input to prevent SQL injection (though binding is safer, this is
-    // simple construction) Actually, we should bind this, but for dynamic WHERE
-    // clauses it's tricky with wrapper. For now, let's trust the source filter
-    // is limited to valid enum-like values or bind it. Since we are building
-    // the string, let's use a placeholder.
     conditions.push_back("source = ?");
   }
   if (!params.search_query.empty()) {
