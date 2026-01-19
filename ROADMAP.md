@@ -1,8 +1,8 @@
 # Blu-ray Tracker - Feature Roadmap & Implementation Plan
 
 **Version**: 1.0
-**Date**: 2026-01-16
-**Status**: Planning Phase
+**Date**: 2026-01-19
+**Status**: Execution Phase
 
 ## Executive Summary
 
@@ -12,7 +12,7 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 - **Implementation effort** (development complexity, time investment)
 - **Strategic fit** (alignment with project goals)
 
-**Key Finding**: The `price_history` table already exists in the database schema, making Feature 3 (Price History Visualization) a quick win.
+**Key Achievement**: Phase 1 foundation (Price History) and several usability enhancements (Collection Edit, Title Locking) are now **COMPLETED**.
 
 ---
 
@@ -25,7 +25,7 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 
 | # | Feature | Value | Effort | Score | Phase | Status |
 |---|---------|-------|--------|-------|-------|--------|
-| 3 | **Price History Visualization** | 4 | 2 | **2.00** | 1 | DB Ready |
+| 3 | **Price History Visualization** | 4 | 2 | **2.00** | 1 | **Completed** |
 | 1 | **IMDb/TMDb Metadata Enrichment** | 5 | 3 | **1.67** | 1 | Stub Needed |
 | 4 | **Multi-Site Expansion** | 4 | 3 | **1.33** | 2 | Extensible |
 | 9 | **Custom Alert Rules** | 4 | 3 | **1.33** | 2 | Infrastructure Ready |
@@ -34,78 +34,39 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 | 8 | **Backup & Cloud Sync** | 4 | 4 | **1.00** | 3 | Infrastructure |
 | 5 | **Progressive Web App (PWA)** | 3 | 4 | **0.75** | 3 | Frontend Heavy |
 | 7 | **Social Sharing (X/Twitter)** | 2 | 3 | **0.67** | 4 | Low Priority |
+| 10 | **Release Calendar** | 4 | 3 | **1.33** | 2 | New Feature |
+
 
 ---
 
-ALSO CONSIDER A CALENDER FEATURE TO SHOW FUTURE RELEASES!
 
-## Phase 1: Quick Wins & Foundations (1-2 Months)
 
-### 1. Price History Visualization ⭐ **HIGHEST PRIORITY**
-
-**Status**: Database schema complete, visualization pending
-**Effort**: LOW (2 weeks)
+## Phase 1: Quick Wins & Foundations (Completed)
+ 
+### 1. Price History Visualization ⭐ **COMPLETED**
+ 
+**Status**: **Live in v1.1**
+**Effort**: LOW (Completed)
 **Value**: HIGH
-
-#### Current State
-- ✅ `price_history` table exists (database_manager.cpp:168-177)
-- ✅ Foreign key relationship to `wishlist` table
-- ❌ No insertion logic in scraper
-- ❌ No API endpoints for history retrieval
-- ❌ No frontend visualization
-
-#### Implementation Tasks
-
-**Backend** (C++)
-1. **Update Scheduler** (`src/application/scheduler.cpp`)
-   - In `runOnce()`, after detecting price changes, insert records into `price_history`:
-     ```cpp
-     auto& db = DatabaseManager::instance();
-     auto stmt = db.prepare(
-         "INSERT INTO price_history (wishlist_id, price, in_stock, recorded_at) "
-         "VALUES (?, ?, ?, datetime('now'))"
-     );
-     // Bind wishlist_id, current_price, in_stock
-     sqlite3_step(stmt.get());
-     ```
-
-2. **Create PriceHistoryRepository** (`src/infrastructure/repositories/price_history_repository.hpp/cpp`)
-   - `std::vector<PriceHistoryEntry> getHistory(int wishlist_id, int days = 180)`
-   - `void pruneOldEntries(int days = 180)` - Cleanup task
-
-3. **Add API Endpoint** (`src/presentation/web_frontend.cpp`)
-   - `GET /api/wishlist/{id}/price-history?days=90`
-   - Returns JSON: `[{"date": "2026-01-15", "price": 19.99, "in_stock": true}, ...]`
-
-**Frontend** (JavaScript/HTML)
-1. **Embed Chart.js** (minimal version ~50KB)
-   - Add inline `<script>` with Chart.js source in web_frontend.cpp HTML template
-   - Or use CDN: `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>`
-
-2. **Add Chart Modal** (HTML/CSS in web_frontend.cpp)
-   - Button in wishlist table: "📈 View History"
-   - Modal with `<canvas id="priceChart"></canvas>`
-   - JavaScript to fetch `/api/wishlist/{id}/price-history` and render line chart
-
-3. **Visualization Features**
-   - X-axis: Date, Y-axis: Price (€)
-   - Color-coded: Green = in stock, Red = out of stock
-   - Threshold line showing `desired_max_price`
-   - Tooltips with exact price and stock status
-
-**Testing**
-- Insert test data spanning 3 months
-- Verify chart renders correctly
-- Test pagination/zoom for long histories
-
-**Success Metrics**
-- ✅ Historical prices stored on each scrape
-- ✅ Users can view 6-month price trends
-- ✅ Chart loads in <1 second
-
+ 
+**Delivered**:
+- ✅ Backend: Scheduler inserts records, API serves history JSON.
+- ✅ Frontend: Chart.js integration with target price lines and interactive tooltips.
+- ✅ Modal: "View History" button in Wishlist.
+ 
 ---
 
-### 2. IMDb/TMDb Metadata Enrichment ⭐ **FOUNDATIONAL**
+### 1b. Usability Enhancements (Completed)
+- **Wishlist Title Locking**: Prevent scraper overwrites.
+- **Collection Editing**: Edit modal for collection capabilities.
+- **Scraper Rate Limiting**: Throttling to prevent bans.
+- **Debounced Search**: Responsive search for large collections.
+- **Security Hardening**: Log sanitization and SQL injection prevention.
+- **Bol.com Variant Fix**: Strict ID matching for 4K/BD accuracy.
+ 
+---
+
+### 2. IMDb/TMDb Metadata Enrichment ⭐ **NEXT PRIORITY**
 
 **Status**: No stub exists, clean slate
 **Effort**: MEDIUM (3 weeks)
@@ -338,7 +299,37 @@ private:
 
 ---
 
-### 5. Custom Alert Rules
+### 5. Release Calendar & Pre-order Tracker
+
+**Effort**: MEDIUM (3 weeks)
+**Value**: HIGH (planning tool)
+
+#### Implementation
+
+1.  **New Repository**: `src/infrastructure/repositories/release_calendar_repository.hpp/cpp`
+    - Store upcoming releases with date, title, region, format (4K/BD).
+
+2.  **Scraper Enhancement**
+    - Scrape "Coming Soon" sections from supported sites.
+    - Parse release dates (often found in product details: "Available on ...").
+
+3.  **Frontend Calendar View**
+    - New View: `/calendar`
+    - FullCalendar.js or a lightweight custom CSS grid implementation.
+    - Show releases as events on the calendar.
+    - Click event -> "Add to Wishlist" / "Pre-order" link.
+
+4.  **Notifications**
+    - Notify user 1 week and 1 day before release of a wishlisted item.
+    - "New Release" digest email.
+
+**Success Metrics**
+- ✅ Calendar accurately reflects 90% of major upcoming releases.
+- ✅ Users add 5+ items to wishlist from calendar view per month.
+
+---
+
+### 6. Custom Alert Rules
 
 **Effort**: MEDIUM (3 weeks)
 **Value**: HIGH
@@ -391,7 +382,7 @@ private:
 
 ## Phase 3: Advanced UX & Infrastructure (4-6 Months)
 
-### 6. Inventory Management (Barcode Scanning)
+### 7. Inventory Management (Barcode Scanning)
 
 **Effort**: MEDIUM (3 weeks)
 **Value**: MEDIUM-HIGH (for collectors)
@@ -418,7 +409,7 @@ private:
 
 ---
 
-### 7. Backup & Cloud Sync
+### 8. Backup & Cloud Sync
 
 **Effort**: MEDIUM-HIGH (4 weeks)
 **Value**: HIGH (data safety)
@@ -451,7 +442,7 @@ private:
 
 ---
 
-### 8. Progressive Web App (PWA)
+### 9. Progressive Web App (PWA)
 
 **Effort**: HIGH (4-5 weeks)
 **Value**: MEDIUM (convenience)
@@ -490,7 +481,7 @@ private:
 
 ## Phase 4: Social & Polish (6+ Months)
 
-### 9. Social Sharing (X/Twitter Integration)
+### 10. Social Sharing (X/Twitter Integration)
 
 **Effort**: MEDIUM (2-3 weeks)
 **Value**: LOW-MEDIUM
@@ -524,7 +515,7 @@ private:
 | Phase | Duration | Features | Key Deliverables |
 |-------|----------|----------|------------------|
 | **Phase 1** | Weeks 1-8 | Price History, IMDb Metadata | Visualization, Enriched UI |
-| **Phase 2** | Weeks 9-16 | Recommendations, Multi-Site, Custom Alerts | Discovery Page, New Scrapers, Rule Engine |
+| **Phase 2** | Weeks 9-16 | Recommendations, Multi-Site, Custom Alerts, Calendar | Discovery Page, New Scrapers, Rule Engine, Release Calendar |
 | **Phase 3** | Weeks 17-24 | Inventory, Backup, PWA | Barcode Scanner, Cloud Sync, Mobile App |
 | **Phase 4** | Weeks 25+ | Social Sharing | X Integration, Public Profiles |
 
@@ -584,8 +575,10 @@ private:
 - [ ] Discovery page shows 20+ personalized recommendations
 - [ ] 2 new scrapers added (Coolblue, MediaMarkt)
 - [ ] Custom alert rules functional with 95%+ accuracy
+- [ ] Release calendar populated with 50+ upcoming titles
 
 ### Phase 3 (Weeks 17-24)
+
 - [ ] Barcode scanning works on 5+ device types
 - [ ] Automated cloud backups configured
 - [ ] PWA installable on mobile devices

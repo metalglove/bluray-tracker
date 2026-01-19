@@ -13,6 +13,7 @@ A modern C++20 application for tracking Blu-ray and UHD 4K movie prices on Dutch
 - **Interactive Dashboard** - Animated statistics cards and quick actions
 - **Modal Dialogs** - Elegant forms for adding and editing items
 - **Toast Notifications** - Real-time feedback for all user actions
+- **Debounced Search** - Instant, responsive search for wishlist and collection items
 
 ### 🔍 Smart Tracking
 - **Automatic Scraping** - Scheduled price and availability monitoring
@@ -21,9 +22,14 @@ A modern C++20 application for tracking Blu-ray and UHD 4K movie prices on Dutch
 - **Multiple Notifications** - Discord webhooks and SMTP email support
 - **Image Caching** - Product images cached locally with SHA256 hashing
 - **Pagination** - Efficient browsing of large collections
+- **Source Filtering** - Filter wishlist/collection by Amazon.nl or Bol.com
+- **Smart Scraper** - Bol.com variant detection (4K vs standard) and rate limiting
+- **Title Locking** - Prevent scraper from overwriting your custom titles
+- **Price History** - Visual charts tracking price trends over time
 
 ### 🛠️ Technical Excellence
-- **Modern C++20** - Uses latest language features (std::format, concepts, ranges)
+- **Modern C++17** - robust and efficient codebase using `fmt` for formatting
+- **Security Hardening** - SQL injection prevention and comprehensive log sanitization
 - **Clean Architecture** - Domain, infrastructure, application, and presentation layers
 - **SQLite Database** - Lightweight, embedded storage with RAII wrappers
 - **Docker Ready** - Easy deployment with Docker Compose
@@ -195,7 +201,8 @@ Built with clean architecture principles:
 
 ## Technology Stack
 
-- **C++20** with modern features (std::format, concepts, ranges)
+- **C++17** with modern libraries
+- **fmt** - Safe and fast formatting library (replacing std::format)
 - **CMake 3.22+** with FetchContent
 - **Crow** - Fast C++ web framework
 - **libcurl** - HTTP client
