@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Blu-ray Tracker** is a modern C++20 application for tracking Blu-ray/UHD 4K movie prices and availability on Dutch e-commerce sites (Amazon.nl and Bol.com). The application periodically scrapes product information, detects meaningful changes (price drops, stock updates), and sends notifications via Discord webhooks or email.
+**Blu-ray Tracker** is a modern C++17 application for tracking Blu-ray/UHD 4K movie prices and availability on Dutch e-commerce sites (Amazon.nl and Bol.com). The application periodically scrapes product information, detects meaningful changes (price drops, stock updates), and sends notifications via Discord webhooks or email.
 
 ### Key Features
 - **Modern Web-based Dashboard** (Crow framework with embedded SPA)
@@ -20,13 +20,14 @@
 - Docker deployment with cron scheduling
 
 ### Technology Stack
-- **Language**: C++20 (std::format, concepts, ranges, std::jthread, designated initializers)
+- **Language**: C++17 (concepts, ranges, designated initializers are partially supported or polyfilled)
 - **Build System**: CMake 3.22+ with FetchContent
 - **Web Framework**: Crow (header-only)
 - **HTTP Client**: libcurl (system package)
 - **HTML Parser**: gumbo-parser (system package)
 - **Database**: SQLite3 (system package)
 - **JSON**: nlohmann/json (header-only via FetchContent)
+- **Formatting**: fmt (header-only via FetchContent, replaces std::format)
 
 ---
 
@@ -44,7 +45,7 @@ bluray-tracker/
 │   │   ├── models.hpp/cpp         # Product, WishlistItem, CollectionItem, ChangeEvent
 │   │   └── change_detector.hpp   # Observer pattern for change detection
 │   ├── infrastructure/            # Technical concerns
-│   │   ├── logger.hpp/cpp         # Thread-safe logging (std::format)
+│   │   ├── logger.hpp/cpp         # Thread-safe logging (fmt::format)
 │   │   ├── database_manager.hpp/cpp  # RAII SQLite wrapper
 │   │   ├── config_manager.hpp/cpp    # Configuration from database
 │   │   ├── network_client.hpp/cpp    # RAII libcurl wrapper
@@ -406,11 +407,11 @@ scheduler->addNotifier(new_notifier);
 
 ## Code Conventions
 
-### Modern C++20 Features
-
-#### Use std::format for string formatting
+### Modern C++17 and fmt
+ 
+#### Use fmt::format for string formatting
 ```cpp
-std::string message = std::format("Price: €{:.2f}", price);
+std::string message = fmt::format("Price: €{:.2f}", price);
 Logger::instance().info(message);
 ```
 
@@ -846,8 +847,7 @@ public:
 
 ### Suggested Features
 
-1. **Price charts** - Visualize price history over time
-2. **Advanced filters** - Filter wishlist by format (4K only), price range
+1. **Advanced filters** - Filter wishlist by format (4K only), price range
 3. **Multiple notification channels** - Telegram, Slack, etc.
 4. **User authentication** - Multi-user support
 5. **Mobile app** - Native iOS/Android or PWA
@@ -959,6 +959,6 @@ sqlite> SELECT key, value FROM config;
 
 ---
 
-**Last Updated**: 2026-01-16
-**Version**: 2.0.0 (Modern UI with WebSocket support)
+**Last Updated**: 2026-01-19
+**Version**: 2.1.0 (Modern UI with Price History & WebSocket support)
 **Maintainer**: metalglove
