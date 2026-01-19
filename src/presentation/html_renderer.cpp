@@ -357,6 +357,14 @@ std::string HtmlRenderer::renderStyles() {
             box-shadow: 0 2px 4px var(--shadow);
         }
 
+        .table-image img {
+            width: 100px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px var(--shadow);
+        }
+
         .badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -1244,8 +1252,7 @@ std::string HtmlRenderer::renderScripts() {
             try {
                 const sortVal = document.getElementById('wishlistSort').value;
                 const stockVal = document.getElementById('wishlistStockFilter').value;
-                const sortVal = document.getElementById('wishlistSort').value;
-                const stockVal = document.getElementById('wishlistStockFilter').value;
+
                 const sourceVal = document.getElementById('wishlistSourceFilter').value;
                 const searchVal = document.getElementById('wishlistSearch').value;
                 
@@ -1717,7 +1724,10 @@ std::string HtmlRenderer::renderScripts() {
                 chartInstance.destroy();
             }
             
-            const labels = history.map(h => new Date(h.timestamp).toLocaleDateString());
+            const labels = history.map(h => {
+                const dateStr = h.date.replace(' ', 'T'); // Ensure ISO format for safety
+                return new Date(dateStr).toLocaleDateString();
+            });
             const prices = history.map(h => h.price);
             const targets = history.map(() => targetPrice);
             
