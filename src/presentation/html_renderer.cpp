@@ -712,24 +712,24 @@ std::string HtmlRenderer::renderSidebar() {
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <nav class="navbar">
-        <div class="nav-brand">
-            <span class="nav-icon">🎬</span>
-            Blu-ray Tracker
-        </div>
-        
-        <!-- Scrape Progress Indicator -->
-        <div id="scrapeProgressContainer" style="flex: 1; max-width: 300px; margin: 0 2rem; display: none;">
-             <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
-                <span id="scrapeStatusText">Scraping...</span>
-                <span id="scrapePercent">0%</span>
-             </div>
-             <div style="height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden;">
-                 <div id="scrapeProgressBar" style="height: 100%; width: 0%; background: var(--primary); transition: width 0.3s ease;"></div>
-             </div>
+            <div class="nav-brand">
+                <span class="nav-icon">🎬</span>
+                Blu-ray Tracker
+            </div>
+            
+            <!-- Scrape Progress Indicator -->
+            <div id="scrapeProgressContainer" style="flex: 1; max-width: 300px; margin: 0 2rem; display: none;">
+                 <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                    <span id="scrapeStatusText">Scraping...</span>
+                    <span id="scrapePercent">0%</span>
+                 </div>
+                 <div style="height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden;">
+                     <div id="scrapeProgressBar" style="height: 100%; width: 0%; background: var(--primary); transition: width 0.3s ease;"></div>
+                 </div>
+            </div>
         </div>
 
-        <div class="nav-links">
+        <nav class="nav-links">
             <a class="nav-item active" data-page="dashboard">
                 <span class="nav-icon">📊</span>
                 <span>Dashboard</span>
@@ -746,9 +746,7 @@ std::string HtmlRenderer::renderSidebar() {
                 <span class="nav-icon">⚙️</span>
                 <span>Settings</span>
             </a>
-        </div>
         </nav>
-        </div>
     </aside>
 )HTML";
 }
@@ -993,6 +991,12 @@ std::string HtmlRenderer::renderModals() {
                 <div class="form-group">
                     <label class="form-label">Title</label>
                     <input type="text" class="form-input" id="editWishlistTitle" required>
+                    <div style="margin-top: 5px;">
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="editWishlistTitleLocked">
+                            <span style="font-size: 0.9em; color: var(--text-muted);">Lock Title (prevent scraper updates)</span>
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Desired Max Price (€)</label>
@@ -1122,8 +1126,19 @@ std::string HtmlRenderer::renderScripts() {
             document.getElementById('wishlistSort')?.addEventListener('change', () => loadWishlist(1));
             document.getElementById('wishlistStockFilter')?.addEventListener('change', () => loadWishlist(1));
             document.getElementById('wishlistSourceFilter')?.addEventListener('change', () => loadWishlist(1));
+            document.getElementById('wishlistSearch')?.addEventListener('input', debounce(() => loadWishlist(1), 300));
+
             document.getElementById('collectionSourceFilter')?.addEventListener('change', () => loadCollection(1));
+            document.getElementById('collectionSearch')?.addEventListener('input', debounce(() => loadCollection(1), 300));
         });
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
 
         // Navigation
         function setupNavigation() {
@@ -1202,7 +1217,9 @@ std::string HtmlRenderer::renderScripts() {
             if (msg.type.startsWith('wishlist_')) {
                 if (currentPage === 'wishlist') loadWishlist(wishlistData.page);
                 loadDashboardStats();
-                showToast(msg.message, 'info');
+                if (msg.message) {
+                    showToast(msg.message, 'info');
+                }
             }
         }
 
@@ -1268,12 +1285,9 @@ std::string HtmlRenderer::renderScripts() {
                 }
 
                 let url = `/api/wishlist?page=${page}&size=20&sort=${sort}&order=${order}`;
-                if (stockVal) {
-                    url += `&stock=${stockVal}`;
-                }
-                if (sourceVal) {
-                    url += `&source=${sourceVal}`;
-                }
+                if (stockVal) url += `&stock=${stockVal}`;
+                if (sourceVal) url += `&source=${sourceVal}`;
+                if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
 
                 const res = await fetch(url);
                 wishlistData = await res.json();
@@ -1365,12 +1379,8 @@ std::string HtmlRenderer::renderScripts() {
                  const sourceVal = document.getElementById('collectionSourceFilter').value;
                  const searchVal = document.getElementById('collectionSearch').value;
                  let url = `/api/collection?page=${page}&size=20`;
-                 if (sourceVal) {
-                     url += `&source=${sourceVal}`;
-                 }
-                 if (searchVal) {
-                     url += `&search=${encodeURIComponent(searchVal)}`;
-                 }
+                 if (sourceVal) url += `&source=${sourceVal}`;
+                 if (searchVal) url += `&search=${encodeURIComponent(searchVal)}`;
 
                 const res = await fetch(url);
                 collectionData = await res.json();
@@ -1462,6 +1472,7 @@ std::string HtmlRenderer::renderScripts() {
             
             document.getElementById('editWishlistId').value = id;
             document.getElementById('editWishlistTitle').value = item.title;
+            document.getElementById('editWishlistTitleLocked').checked = item.title_locked;
             document.getElementById('editWishlistPrice').value = item.desired_max_price;
             document.getElementById('editWishlistNotifyPrice').checked = item.notify_on_price_drop;
             document.getElementById('editWishlistNotifyStock').checked = item.notify_on_stock;
@@ -1567,6 +1578,7 @@ std::string HtmlRenderer::renderScripts() {
             const id = document.getElementById('editWishlistId').value;
             const data = {
                 title: document.getElementById('editWishlistTitle').value,
+                title_locked: document.getElementById('editWishlistTitleLocked').checked,
                 desired_max_price: parseFloat(document.getElementById('editWishlistPrice').value),
                 notify_on_price_drop: document.getElementById('editWishlistNotifyPrice').checked,
                 notify_on_stock: document.getElementById('editWishlistNotifyStock').checked

@@ -15,7 +15,7 @@ namespace validation {
 
 // Whitelist for sort_by values
 constexpr std::array<std::string_view, 3> VALID_SORT_FIELDS = {"price", "title",
-                                                                "date"};
+                                                               "date"};
 
 // Whitelist for sort_order values
 constexpr std::array<std::string_view, 2> VALID_SORT_ORDERS = {"asc", "desc"};
@@ -43,24 +43,27 @@ inline std::string toLower(std::string_view str) {
  * @param max_length Maximum length of the output string (default 100)
  * @return Sanitized string safe for logging
  */
-inline std::string sanitizeForLog(std::string_view str, size_t max_length = 100) {
+inline std::string sanitizeForLog(std::string_view str,
+                                  size_t max_length = 100) {
   std::string result;
   result.reserve(std::min(str.size(), max_length));
-  
+
   for (size_t i = 0; i < str.size() && result.size() < max_length; ++i) {
     char c = str[i];
-    // Replace newlines, carriage returns, and other control characters with space
-    if (c == '\n' || c == '\r' || c == '\t' || (c >= 0 && c < 32)) {
+    // Replace newlines, carriage returns, and other control characters with
+    // space
+    unsigned char uc = static_cast<unsigned char>(c);
+    if (c == '\n' || c == '\r' || c == '\t' || uc < 32) {
       result += ' ';
     } else {
       result += c;
     }
   }
-  
+
   if (str.size() > max_length) {
     result += "...";
   }
-  
+
   return result;
 }
 
@@ -88,9 +91,10 @@ inline bool isValidValue(std::string_view value,
  * @return true if value is in the whitelist, false otherwise
  */
 template <size_t N>
-inline bool isValidValueNormalized(std::string_view value,
-                                   const std::array<std::string_view, N> &whitelist,
-                                   std::string &normalized_value) {
+inline bool
+isValidValueNormalized(std::string_view value,
+                       const std::array<std::string_view, N> &whitelist,
+                       std::string &normalized_value) {
   normalized_value = toLower(value);
   return std::any_of(whitelist.begin(), whitelist.end(),
                      [&normalized_value](std::string_view allowed) {

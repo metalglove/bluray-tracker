@@ -219,12 +219,26 @@ void WebFrontend::setupWishlistRoutes() {
         }
 
         // Update fields
+        bool title_changed = false;
         if (body.has("title")) {
           std::string new_title = body["title"].s();
           if (new_title != item->title) {
             item->title = new_title;
             // Lock title if manually changed
             item->title_locked = true;
+            title_changed = true;
+          }
+        }
+        if (body.has("title_locked")) {
+          // Only apply explicit lock setting if title didn't change (user just
+          // toggling lock) or if user explicitly requested a lock state
+          // (overriding our auto-lock) Actually, if title changed, we WANT to
+          // lock it. If user also sent "false" (unchecked box), we should
+          // ignore that "false" because it's just the old state. The only time
+          // we respect "false" here is if title didn't change.
+          bool explicit_lock = body["title_locked"].b();
+          if (!title_changed || explicit_lock) {
+            item->title_locked = explicit_lock;
           }
         }
         if (body.has("desired_max_price"))
