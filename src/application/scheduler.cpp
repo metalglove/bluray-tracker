@@ -120,6 +120,20 @@ int Scheduler::runOnce() {
     }
     futures.push_back(
         std::async(std::launch::async, process_item, wishlist_items[i]));
+
+    // Rate limiting: Throttle the launch rate
+    // Start with configured delay divided by concurrency to spread requests out
+    // But ensure at least some delay between requests if delay_seconds > 0
+    if (delay_seconds_ > 0) {
+      int throttle_ms = (delay_seconds_ * 1000) / kConcurrency;
+      // Clamp to reasonable minimum if user has configured a delay
+      if (throttle_ms < 1000)
+        throttle_ms = 1000;
+
+      Logger::instance().debug(
+          fmt::format("Throttling request for {}ms", throttle_ms));
+      std::this_thread::sleep_for(std::chrono::milliseconds(throttle_ms));
+    }
   }
 
   // Wait for all remaining
@@ -278,7 +292,13 @@ void Scheduler::updateWishlistItem(SqliteWishlistRepository &repo,
   if (!old_item.title_locked && !product.title.empty()) {
     updated_item.title = product.title;
   }
-  updated_item.current_price = product.price;
+  if (product.price > 0.01) {
+    updated_item.current_price = product.price;
+  } else if (product.in_stock && product.price < 0.01) {
+    // If in stock but price is 0, likely a scraper parsing error. Log it.
+    Logger::instance().warning(
+        fmt::format("Scraped 0 price for in-stock item: {}", product.title));
+  }
   updated_item.in_stock = product.in_stock;
   updated_item.is_uhd_4k = product.is_uhd_4k;
   updated_item.image_url = product.image_url;

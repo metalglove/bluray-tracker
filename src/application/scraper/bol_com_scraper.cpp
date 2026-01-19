@@ -108,42 +108,63 @@ BolComScraper::parseJsonLd(GumboNode *root, const std::string &url) {
     const nlohmann::json *item = &j;
 
     // Helper to check if item matches our URL
+    // Helper to extract Bol.com ID from a URL
+    auto extractId = [](std::string_view url_str) -> std::string {
+      // Look for 13+ digits pattern which is typical for Bol.com IDs
+      // Identifiers usually appear after /p/title/ or at end of path
+      std::regex id_regex(R"((\d{13,}))");
+      std::smatch match;
+      std::string url_string(url_str);
+      if (std::regex_search(url_string, match, id_regex)) {
+        return match[1].str();
+      }
+      return "";
+    };
+
+    std::string target_id = extractId(url);
+    if (target_id.empty()) {
+      // Fallback to simplistic slash logic if regex fails (though unlikely for
+      // valid bol/p/ urls) Kept for backward compat with non-standard URLs
+    } else {
+      infrastructure::Logger::instance().debug(
+          fmt::format("Bol.com Target ID: {}", target_id));
+    }
+
+    // Helper to check if item matches our URL
     auto matchesUrl = [&](const nlohmann::json &obj) {
       if (!obj.contains("url"))
         return false;
       std::string obj_url = obj["url"].get<std::string>();
-      // Simple containment check as ID should be unique enough
-      // Extract ID from input url if possible
-      std::string id;
-      size_t last_slash = url.find_last_of('/');
-      if (last_slash != std::string::npos) {
-        // Check if ID is after slash
-        std::string check = url.substr(last_slash + 1);
-        if (check.empty() && last_slash > 0) {
-          size_t prev_slash = url.find_last_of('/', last_slash - 1);
-          if (prev_slash != std::string::npos) {
-            check = url.substr(prev_slash + 1, last_slash - prev_slash - 1);
-          }
+
+      // Strict ID match if we found one
+      if (!target_id.empty()) {
+        std::string obj_id = extractId(obj_url);
+        if (!obj_id.empty()) {
+          return obj_id == target_id;
         }
-        if (!check.empty() &&
-            std::all_of(check.begin(), check.end(), ::isdigit)) {
-          id = check;
-        }
+        // If obj has no ID in URL (weird), fallback to substring
+        return obj_url.find(target_id) != std::string_view::npos;
       }
 
-      if (!id.empty()) {
-        return obj_url.find(id) != std::string::npos;
-      }
+      // Fallback to simple substring match
       return obj_url.find(url) != std::string::npos;
     };
 
     // If it's a Movie/Product with workExample (variants)
     if (item->contains("workExample") && (*item)["workExample"].is_array()) {
+      bool found_variant = false;
       for (const auto &variant : (*item)["workExample"]) {
         if (matchesUrl(variant)) {
           item = &variant;
+          found_variant = true;
+          infrastructure::Logger::instance().debug(
+              "Found matching variant in JSON-LD");
           break;
         }
+      }
+      if (!found_variant && !target_id.empty()) {
+        infrastructure::Logger::instance().warning(
+            fmt::format("No variant matched Target ID: {}", target_id));
       }
     }
 
