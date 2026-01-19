@@ -1,6 +1,6 @@
 # 🎬 Blu-ray Tracker
 
-A modern C++20 application for tracking Blu-ray and UHD 4K movie prices on Dutch e-commerce sites (Amazon.nl and Bol.com).
+A modern C++17 application for tracking Blu-ray and UHD 4K movie prices on Dutch e-commerce sites (Amazon.nl and Bol.com).
 
 ## ✨ Features
 
@@ -274,4 +274,4 @@ This project is provided as-is for educational and personal use.
 
 ---
 
-**Built with ❤️ and modern C++20**
+**Built with ❤️ and modern C++17**
