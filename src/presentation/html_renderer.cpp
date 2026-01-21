@@ -703,6 +703,140 @@ std::string HtmlRenderer::renderStyles() {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        /* Release Calendar */
+        .release-calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 1rem 0;
+        }
+
+        .release-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .release-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px var(--shadow);
+            border-color: var(--primary);
+        }
+
+        .release-card-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .release-card-body {
+            padding: 1rem;
+        }
+
+        .release-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+            /* Standard line-clamp with webkit fallback for wider browser support */
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-clamp: 2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .release-card-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .release-card-date {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .release-card-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .release-card-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--bg-secondary);
+        }
+
+        .release-card-badge.uhd {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .release-card-badge.preorder {
+            background: var(--primary);
+            color: white;
+        }
+
+        .release-card-studio {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .wishlist-button-container {
+            margin-top: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .wishlist-button {
+            width: 100%;
+            font-size: 0.875rem;
+            padding: 0.5rem;
+        }
+
+        .retailer-info {
+            margin-top: 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .release-time-info {
+            font-weight: normal;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        @media (max-width: 768px) {
+            .release-calendar-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 1rem;
+            }
+
+            .release-card-image {
+                height: 150px;
+            }
+        }
     </style>
 )HTML";
 }
@@ -809,6 +943,38 @@ std::string HtmlRenderer::renderMainContent() {
                             <span>🔄</span>
                             Scrape Now
                         </button>
+                    </div>
+                </div>
+
+                <!-- Release Calendar Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">🎬 Upcoming Blu-ray Releases</h2>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select class="filter-select" id="calendarFormatFilter" style="margin: 0;">
+                                <option value="">All Formats</option>
+                                <option value="uhd">UHD 4K Only</option>
+                                <option value="bluray">Blu-ray Only</option>
+                            </select>
+                            <select class="filter-select" id="calendarDaysFilter" style="margin: 0;">
+                                <option value="30">Next 30 Days</option>
+                                <option value="60">Next 60 Days</option>
+                                <option value="90" selected>Next 90 Days</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="releaseCalendarLoading" class="loading-spinner" style="display: none; padding: 2rem; text-align: center;">
+                        <div class="spinner"></div>
+                        <p style="margin-top: 1rem; color: var(--text-secondary);">Loading releases...</p>
+                    </div>
+
+                    <div id="releaseCalendarEmpty" style="display: none; padding: 2rem; text-align: center; color: var(--text-secondary);">
+                        <p>No upcoming releases found. Check back later!</p>
+                    </div>
+
+                    <div id="releaseCalendarGrid" class="release-calendar-grid">
+                        <!-- Release items will be dynamically inserted here -->
                     </div>
                 </div>
             </div>
@@ -1130,6 +1296,10 @@ std::string HtmlRenderer::renderScripts() {
 
             document.getElementById('collectionSourceFilter')?.addEventListener('change', () => loadCollection(1));
             document.getElementById('collectionSearch')?.addEventListener('input', debounce(() => loadCollection(1), 300));
+
+            // Add release calendar filter listeners
+            document.getElementById('calendarFormatFilter')?.addEventListener('change', loadReleaseCalendar);
+            document.getElementById('calendarDaysFilter')?.addEventListener('change', loadReleaseCalendar);
         });
 
         function debounce(func, wait) {
@@ -1138,6 +1308,29 @@ std::string HtmlRenderer::renderScripts() {
                 clearTimeout(timeout);
                 timeout = setTimeout(() => func.apply(this, args), wait);
             };
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Escape text for safe use in JavaScript string contexts (e.g., onclick handlers)
+        function escapeJavaScript(text) {
+            if (!text) return '';
+            return text
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r')
+                .replace(/\t/g, '\\t')
+                .replace(/\x08/g, '\\b')
+                .replace(/\f/g, '\\f')
+                .replace(/`/g, '\\`')
+                .replace(/\0/g, '\\0')
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
         }
 
         // Navigation
@@ -1172,7 +1365,10 @@ std::string HtmlRenderer::renderScripts() {
             document.getElementById('pageTitle').textContent = titles[page];
             
             // Load Data
-            if (page === 'dashboard') loadDashboardStats();
+            if (page === 'dashboard') {
+                loadDashboardStats();
+                loadReleaseCalendar();
+            }
             if (page === 'wishlist') loadWishlist();
             if (page === 'collection') loadCollection();
             if (page === 'settings') loadSettings();
@@ -1262,6 +1458,211 @@ std::string HtmlRenderer::renderScripts() {
 
             } catch (error) {
                 console.error('Failed to load stats:', error);
+            }
+        }
+
+        async function loadReleaseCalendar() {
+            const loadingEl = document.getElementById('releaseCalendarLoading');
+            const emptyEl = document.getElementById('releaseCalendarEmpty');
+            const gridEl = document.getElementById('releaseCalendarGrid');
+
+            try {
+                // Show loading state
+                if (loadingEl) loadingEl.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = 'none';
+                if (gridEl) gridEl.innerHTML = '';
+
+                // Get filter values
+                const formatFilter = document.getElementById('calendarFormatFilter')?.value || '';
+                const daysFilter = document.getElementById('calendarDaysFilter')?.value || '90';
+
+                // Fetch release calendar data
+                const res = await fetch(`/api/release-calendar?page=1&size=50`);
+                if (!res.ok) {
+                    throw new Error('Failed to fetch release calendar');
+                }
+
+                const data = await res.json();
+                let items = data.items || [];
+
+                // Apply format filter
+                if (formatFilter === 'uhd') {
+                    items = items.filter(item => item.is_uhd_4k);
+                } else if (formatFilter === 'bluray') {
+                    items = items.filter(item => !item.is_uhd_4k);
+                }
+
+                // Filter by days ahead (compare dates at start of day)
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const maxDate = new Date(today);
+                maxDate.setDate(maxDate.getDate() + parseInt(daysFilter));
+                items = items.filter(item => {
+                    const releaseDate = new Date(item.release_date);
+                    releaseDate.setHours(0, 0, 0, 0);
+                    return releaseDate >= today && releaseDate <= maxDate;
+                });
+
+                // Sort by release date (ascending)
+                items.sort((a, b) => new Date(a.release_date) - new Date(b.release_date));
+
+                // Hide loading
+                if (loadingEl) loadingEl.style.display = 'none';
+
+                // Show empty state or render items
+                if (items.length === 0) {
+                    if (emptyEl) emptyEl.style.display = 'block';
+                    return;
+                }
+
+                // Render release cards
+                renderReleaseCalendarItems(items);
+
+            } catch (error) {
+                console.error('Failed to load release calendar:', error);
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (emptyEl) {
+                    emptyEl.style.display = 'block';
+                    emptyEl.innerHTML = '<p>Failed to load releases. Please try again later.</p>';
+                }
+            }
+        }
+
+        function renderReleaseCalendarItems(items) {
+            const gridEl = document.getElementById('releaseCalendarGrid');
+            if (!gridEl) return;
+
+            gridEl.innerHTML = items.map(item => {
+                const releaseDate = new Date(item.release_date);
+                const formattedDate = releaseDate.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+
+                // Determine relative time
+                const now = new Date();
+                const diffTime = releaseDate - now;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                let timeText = diffDays === 0 ? 'Today!' :
+                               diffDays === 1 ? 'Tomorrow' :
+                               `In ${diffDays} days`;
+
+                // Build image URL
+                const imageUrl = item.local_image_path
+                    ? `/cache/${item.local_image_path.split('/').pop()}`
+                    : item.image_url || '';
+
+                // Check if available on supported retailers using hostname parsing
+                const productUrl = item.product_url || '';
+                let isAmazon = false;
+                let isBol = false;
+                let retailerName = '';
+
+                // Determine retailer based on hostname to avoid matching query/redirect URLs
+                try {
+                    const urlObj = new URL(productUrl);
+                    const host = urlObj.hostname.toLowerCase();
+
+                    if (host === 'amazon.nl' || host === 'www.amazon.nl' || host.endsWith('.amazon.nl')) {
+                        isAmazon = true;
+                        retailerName = 'Amazon.nl';
+                    } else if (host === 'bol.com' || host === 'www.bol.com' || host.endsWith('.bol.com')) {
+                        isBol = true;
+                        retailerName = 'Bol.com';
+                    }
+                } catch (e) {
+                    // Invalid URL; leave retailer flags as false
+                }
+
+                const canAddToWishlist = isAmazon || isBol;
+
+                // Escape strings for safe HTML insertion
+                const escapedTitle = escapeHtml(item.title);
+                const escapedStudio = item.studio ? escapeHtml(item.studio) : '';
+                const escapedUrl = escapeHtml(productUrl);
+                const escapedImageUrl = escapeHtml(imageUrl);
+
+                // Escape for JavaScript context (onclick handlers)
+                const jsSafeUrl = escapeJavaScript(productUrl || '#');
+                const jsSafeTitle = escapeJavaScript(item.title);
+
+                return `
+                    <div class="release-card" onclick="window.open('${jsSafeUrl}', '_blank')">
+                        ${imageUrl ? `<img src="${escapedImageUrl}" alt="${escapedTitle}" class="release-card-image" onerror="this.style.display='none'">` : '<div class="release-card-image"></div>'}
+                        <div class="release-card-body">
+                            <div class="release-card-title">${escapedTitle}</div>
+                            <div class="release-card-meta">
+                                <div class="release-card-date">
+                                    📅 ${formattedDate}
+                                    <span class="release-time-info">(${timeText})</span>
+                                </div>
+                                <div class="release-card-info">
+                                    ${item.is_uhd_4k ? '<span class="release-card-badge uhd">UHD 4K</span>' : '<span class="release-card-badge">Blu-ray</span>'}
+                                    ${item.is_preorder ? '<span class="release-card-badge preorder">Pre-order</span>' : ''}
+                                    ${item.price > 0 ? `<span class="release-card-badge">€${item.price.toFixed(2)}</span>` : ''}
+                                </div>
+                                ${item.studio ? `<div class="release-card-studio">🎬 ${escapedStudio}</div>` : ''}
+                                ${canAddToWishlist ? `
+                                    <div class="wishlist-button-container">
+                                        <button
+                                            class="btn btn-primary wishlist-button"
+                                            onclick="event.stopPropagation(); addToWishlistFromCalendar('${jsSafeUrl}', '${jsSafeTitle}', ${item.is_uhd_4k}, ${item.price || 0})">
+                                            ⭐ Add to Wishlist
+                                        </button>
+                                    </div>
+                                    <div class="retailer-info">
+                                        Available on ${retailerName}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function addToWishlistFromCalendar(url, title, isUhd4k, price) {
+            try {
+                // Determine a reasonable default max price
+                const desiredMaxPrice = price > 0 ? price : (isUhd4k ? 25.0 : 20.0);
+
+                const payload = {
+                    url: url,
+                    title: title,
+                    desired_max_price: desiredMaxPrice,
+                    notify_on_price_drop: true,
+                    notify_on_stock: true
+                };
+
+                const res = await fetch('/api/wishlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(errorText || 'Failed to add to wishlist');
+                }
+
+                const newItem = await res.json();
+                showToast(`Added "${title}" to wishlist!`, 'success');
+
+                // Reload wishlist if on that page
+                if (currentPage === 'wishlist') {
+                    loadWishlist(wishlistData.page || 1);
+                }
+
+                // Reload dashboard stats
+                loadDashboardStats();
+
+            } catch (error) {
+                console.error('Failed to add to wishlist:', error);
+                const errorMsg = error.message.includes('UNIQUE constraint')
+                    ? 'This item is already in your wishlist!'
+                    : `Failed to add to wishlist: ${error.message}`;
+                showToast(errorMsg, 'error');
             }
         }
 
