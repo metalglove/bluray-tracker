@@ -11,6 +11,7 @@
 #include <fmt/format.h> // Add fmt include
 #include <iostream>
 #include <memory>
+#include <thread>
 
 using namespace bluray;
 
@@ -143,25 +144,30 @@ int main(int argc, char *argv[]) {
           std::make_shared<application::notifier::EmailNotifier>();
       scheduler->addNotifier(email_notifier);
 
-      // Check if release calendar is empty and populate on first startup
-      infrastructure::repositories::SqliteReleaseCalendarRepository calendar_repo;
-      int calendar_count = calendar_repo.count();
+      // Check if release calendar is empty and populate in background on first startup
+      // This prevents blocking the web server startup while scraping calendar data
+      std::thread calendar_init_thread([scheduler]() {
+        infrastructure::repositories::SqliteReleaseCalendarRepository calendar_repo;
+        int calendar_count = calendar_repo.count();
+        auto& logger = infrastructure::Logger::instance();
 
-      if (calendar_count == 0) {
-        logger.info("Release calendar is empty, fetching initial data...");
-        try {
-          int processed = scheduler->scrapeReleaseCalendar();
+        if (calendar_count == 0) {
+          logger.info("Release calendar is empty, fetching initial data in background...");
+          try {
+            int processed = scheduler->scrapeReleaseCalendar();
+            logger.info(fmt::format(
+                "Initial calendar fetch completed: {} releases added", processed));
+          } catch (const std::exception &e) {
+            logger.warning(fmt::format(
+                "Failed to fetch initial calendar data: {}. Will retry on next scheduled run.",
+                e.what()));
+          }
+        } else {
           logger.info(fmt::format(
-              "Initial calendar fetch completed: {} releases added", processed));
-        } catch (const std::exception &e) {
-          logger.warning(fmt::format(
-              "Failed to fetch initial calendar data: {}. Will retry on next scheduled run.",
-              e.what()));
+              "Release calendar already populated with {} items", calendar_count));
         }
-      } else {
-        logger.info(fmt::format(
-            "Release calendar already populated with {} items", calendar_count));
-      }
+      });
+      calendar_init_thread.detach();
 
       // Create and run web frontend
       presentation::WebFrontend web_frontend(scheduler);
