@@ -93,12 +93,15 @@ cmake --build build -j$(nproc)
 6. **Manage settings** - Configure Discord/email notifications via Settings page
 
 #### UI Features
-- 📊 **Dashboard** - View statistics and quick actions
+- 📊 **Dashboard** - View statistics, quick actions, and upcoming releases
+- 🎬 **Release Calendar** - Browse upcoming Blu-ray releases with one-click wishlist adds
 - ⭐ **Wishlist** - Manage price-tracked items with filters
 - 📀 **Collection** - Browse your owned items
 - ⚙️ **Settings** - Configure scraping and notifications
 - 🌓 **Theme Toggle** - Switch between dark and light modes
 - 🔴 **Live Status** - Connection indicator shows real-time sync status
+
+**Note**: On first startup, the release calendar automatically fetches upcoming releases from blu-ray.com. This ensures the dashboard looks great immediately!
 
 ### Configuration
 
@@ -141,6 +144,8 @@ curl -X POST http://localhost:8080/api/scrape
 **Automatic Schedules** (via cron in Docker):
 - **Wishlist prices**: Every 6 hours (catches price drops and stock changes)
 - **Release calendar**: Once daily at 3 AM (new releases update slowly)
+
+**First Startup**: The release calendar automatically fetches initial data when the web server starts with an empty calendar. No manual scraping required!
 
 ## API Endpoints
 

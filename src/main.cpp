@@ -4,6 +4,7 @@
 #include "infrastructure/config_manager.hpp"
 #include "infrastructure/database_manager.hpp"
 #include "infrastructure/logger.hpp"
+#include "infrastructure/repositories/release_calendar_repository.hpp"
 #include "presentation/web_frontend.hpp"
 #include <csignal>
 #include <cstring>
@@ -141,6 +142,26 @@ int main(int argc, char *argv[]) {
       auto email_notifier =
           std::make_shared<application::notifier::EmailNotifier>();
       scheduler->addNotifier(email_notifier);
+
+      // Check if release calendar is empty and populate on first startup
+      infrastructure::repositories::SqliteReleaseCalendarRepository calendar_repo;
+      int calendar_count = calendar_repo.count();
+
+      if (calendar_count == 0) {
+        logger.info("Release calendar is empty, fetching initial data...");
+        try {
+          int processed = scheduler->scrapeReleaseCalendar();
+          logger.info(fmt::format(
+              "Initial calendar fetch completed: {} releases added", processed));
+        } catch (const std::exception &e) {
+          logger.warning(fmt::format(
+              "Failed to fetch initial calendar data: {}. Will retry on next scheduled run.",
+              e.what()));
+        }
+      } else {
+        logger.info(fmt::format(
+            "Release calendar already populated with {} items", calendar_count));
+      }
 
       // Create and run web frontend
       presentation::WebFrontend web_frontend(scheduler);

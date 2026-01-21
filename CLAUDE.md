@@ -346,6 +346,8 @@ cmake --install build --prefix /usr/local
 
 Access dashboard at `http://localhost:8080`
 
+**Automatic Initialization**: On first startup, if the release calendar is empty, the application automatically fetches initial data from blu-ray.com before starting the web server. This ensures a polished first-user experience without requiring manual scraping.
+
 #### Scraper Modes (one-time execution)
 
 **Wishlist Scraper** - Checks prices and stock on Amazon.nl & Bol.com
