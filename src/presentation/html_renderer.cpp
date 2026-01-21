@@ -1282,6 +1282,12 @@ std::string HtmlRenderer::renderScripts() {
             };
         }
 
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Navigation
         function setupNavigation() {
             document.querySelectorAll('.nav-item').forEach(item => {
@@ -1500,11 +1506,24 @@ std::string HtmlRenderer::renderScripts() {
                     ? `/cache/${item.local_image_path.split('/').pop()}`
                     : item.image_url || '';
 
+                // Check if available on supported retailers
+                const productUrl = item.product_url || '';
+                const isAmazon = productUrl.includes('amazon.nl');
+                const isBol = productUrl.includes('bol.com');
+                const canAddToWishlist = isAmazon || isBol;
+                const retailerName = isAmazon ? 'Amazon.nl' : isBol ? 'Bol.com' : '';
+
+                // Escape strings for safe HTML insertion
+                const escapedTitle = escapeHtml(item.title);
+                const escapedStudio = item.studio ? escapeHtml(item.studio) : '';
+                const escapedUrl = escapeHtml(productUrl);
+                const escapedImageUrl = escapeHtml(imageUrl);
+
                 return `
-                    <div class="release-card" onclick="window.open('${item.product_url || '#'}', '_blank')">
-                        ${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="release-card-image" onerror="this.style.display='none'">` : '<div class="release-card-image"></div>'}
+                    <div class="release-card" onclick="window.open('${escapedUrl || '#'}', '_blank')">
+                        ${imageUrl ? `<img src="${escapedImageUrl}" alt="${escapedTitle}" class="release-card-image" onerror="this.style.display='none'">` : '<div class="release-card-image"></div>'}
                         <div class="release-card-body">
-                            <div class="release-card-title">${item.title}</div>
+                            <div class="release-card-title">${escapedTitle}</div>
                             <div class="release-card-meta">
                                 <div class="release-card-date">
                                     📅 ${formattedDate}
@@ -1515,12 +1534,69 @@ std::string HtmlRenderer::renderScripts() {
                                     ${item.is_preorder ? '<span class="release-card-badge preorder">Pre-order</span>' : ''}
                                     ${item.price > 0 ? `<span class="release-card-badge">€${item.price.toFixed(2)}</span>` : ''}
                                 </div>
-                                ${item.studio ? `<div class="release-card-studio">🎬 ${item.studio}</div>` : ''}
+                                ${item.studio ? `<div class="release-card-studio">🎬 ${escapedStudio}</div>` : ''}
+                                ${canAddToWishlist ? `
+                                    <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+                                        <button
+                                            class="btn btn-primary"
+                                            style="width: 100%; font-size: 0.875rem; padding: 0.5rem;"
+                                            onclick="event.stopPropagation(); addToWishlistFromCalendar('${productUrl.replace(/'/g, "\\'")}', '${item.title.replace(/'/g, "\\'")}', ${item.is_uhd_4k}, ${item.price || 0})">
+                                            ⭐ Add to Wishlist
+                                        </button>
+                                    </div>
+                                    <div style="margin-top: 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted);">
+                                        Available on ${retailerName}
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        async function addToWishlistFromCalendar(url, title, isUhd4k, price) {
+            try {
+                // Determine a reasonable default max price
+                const desiredMaxPrice = price > 0 ? price : (isUhd4k ? 25.0 : 20.0);
+
+                const payload = {
+                    url: url,
+                    title: title,
+                    desired_max_price: desiredMaxPrice,
+                    notify_on_price_drop: true,
+                    notify_on_stock: true
+                };
+
+                const res = await fetch('/api/wishlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(errorText || 'Failed to add to wishlist');
+                }
+
+                const newItem = await res.json();
+                showToast(`Added "${title}" to wishlist!`, 'success');
+
+                // Reload wishlist if on that page
+                if (currentPage === 'wishlist') {
+                    loadWishlist(wishlistData.page || 1);
+                }
+
+                // Reload dashboard stats
+                loadDashboardStats();
+
+            } catch (error) {
+                console.error('Failed to add to wishlist:', error);
+                const errorMsg = error.message.includes('UNIQUE constraint')
+                    ? 'This item is already in your wishlist!'
+                    : `Failed to add to wishlist: ${error.message}`;
+                showToast(errorMsg, 'error');
+            }
         }
 
         async function loadWishlist(page = 1) {
