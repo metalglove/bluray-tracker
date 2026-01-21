@@ -30,12 +30,13 @@ void signalHandler(int signum) {
 void printUsage(const char *program_name) {
   std::cout << "Usage: " << program_name << " [OPTIONS]\n\n"
             << "Options:\n"
-            << "  --run            Run web server (default mode)\n"
-            << "  --scrape         Run scraper once and exit\n"
-            << "  --port <port>    Specify web server port (default: 8080)\n"
-            << "  --db <path>      Specify database path (default: "
+            << "  --run                Run web server (default mode)\n"
+            << "  --scrape             Run wishlist scraper once and exit\n"
+            << "  --scrape-calendar    Run release calendar scraper once and exit\n"
+            << "  --port <port>        Specify web server port (default: 8080)\n"
+            << "  --db <path>          Specify database path (default: "
                "./bluray-tracker.db)\n"
-            << "  --help           Show this help message\n"
+            << "  --help               Show this help message\n"
             << std::endl;
 }
 
@@ -53,6 +54,8 @@ int main(int argc, char *argv[]) {
       mode = "run";
     } else if (std::strcmp(argv[i], "--scrape") == 0) {
       mode = "scrape";
+    } else if (std::strcmp(argv[i], "--scrape-calendar") == 0) {
+      mode = "scrape-calendar";
     } else if (std::strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
       port = std::stoi(argv[++i]);
     } else if (std::strcmp(argv[i], "--db") == 0 && i + 1 < argc) {
@@ -104,6 +107,18 @@ int main(int argc, char *argv[]) {
       int processed = scheduler->runOnce();
       logger.info(
           fmt::format("Scraping completed: {} items processed", processed));
+
+      return 0;
+
+    } else if (mode == "scrape-calendar") {
+      // Release calendar scrape mode: run once and exit
+      logger.info("Running in release calendar scrape mode");
+
+      auto scheduler = std::make_shared<application::Scheduler>();
+
+      // Run calendar scraping
+      int processed = scheduler->scrapeReleaseCalendar();
+      logger.info(fmt::format("Release calendar scraping completed: {} items processed", processed));
 
       return 0;
 

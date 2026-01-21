@@ -1,8 +1,12 @@
 # Blu-ray Tracker Cron Schedule
-# Run scraper every 6 hours
+
+# Wishlist price scraping - every 6 hours (catches price changes and stock updates)
 0 */6 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db >> /app/data/scraper.log 2>&1
 
-# Alternative schedules (commented out):
+# Release calendar scraping - once daily at 3 AM (low update frequency)
+0 3 * * * /app/bluray-tracker --scrape-calendar --db /app/data/bluray-tracker.db >> /app/data/calendar.log 2>&1
+
+# Alternative wishlist schedules (commented out):
 # Every 12 hours:
 # 0 */12 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db >> /app/data/scraper.log 2>&1
 

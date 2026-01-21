@@ -128,12 +128,19 @@ sqlite3 bluray-tracker.db "UPDATE config SET value='15' WHERE key='scrape_delay_
 Trigger scraping manually:
 
 ```bash
-# Via CLI
+# Scrape wishlist prices (checks Amazon.nl & Bol.com for price/stock changes)
 ./bluray-tracker --scrape --db bluray-tracker.db
 
-# Via API
+# Scrape release calendar (fetches upcoming releases from blu-ray.com)
+./bluray-tracker --scrape-calendar --db bluray-tracker.db
+
+# Via API (wishlist only)
 curl -X POST http://localhost:8080/api/scrape
 ```
+
+**Automatic Schedules** (via cron in Docker):
+- **Wishlist prices**: Every 6 hours (catches price drops and stock changes)
+- **Release calendar**: Once daily at 3 AM (new releases update slowly)
 
 ## API Endpoints
 
@@ -237,11 +244,19 @@ environment:
 
 ### Cron Schedule
 
-Default: Every 6 hours. Customize in `docker-crontab`:
+Two separate schedules for optimal performance. Customize in `docker-crontab`:
 
 ```bash
-0 */6 * * * /app/bluray-tracker --scrape ...
+# Wishlist price scraping - every 6 hours
+0 */6 * * * /app/bluray-tracker --scrape --db /app/data/bluray-tracker.db
+
+# Release calendar scraping - once daily at 3 AM
+0 3 * * * /app/bluray-tracker --scrape-calendar --db /app/data/bluray-tracker.db
 ```
+
+**Why different schedules?**
+- Prices change frequently → check every 6 hours to catch deals
+- New releases are announced slowly → once daily is sufficient
 
 ## Legal Notice
 
