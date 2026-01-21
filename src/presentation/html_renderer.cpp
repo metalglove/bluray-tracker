@@ -1328,7 +1328,9 @@ std::string HtmlRenderer::renderScripts() {
                 .replace(/\t/g, '\\t')
                 .replace(/\x08/g, '\\b')
                 .replace(/\f/g, '\\f')
-                .replace(/`/g, '\\`');
+                .replace(/`/g, '\\`')
+                .replace(/\0/g, '\\0')
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
         }
 
         // Navigation
