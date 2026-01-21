@@ -744,9 +744,11 @@ std::string HtmlRenderer::renderStyles() {
             color: var(--text-primary);
             margin-bottom: 0.5rem;
             line-height: 1.4;
+            /* Standard line-clamp with webkit fallback for wider browser support */
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
+            line-clamp: 2;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -797,6 +799,32 @@ std::string HtmlRenderer::renderStyles() {
         .release-card-studio {
             color: var(--text-muted);
             font-size: 0.875rem;
+        }
+
+        .wishlist-button-container {
+            margin-top: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .wishlist-button {
+            width: 100%;
+            font-size: 0.875rem;
+            padding: 0.5rem;
+        }
+
+        .retailer-info {
+            margin-top: 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .release-time-info {
+            font-weight: normal;
+            color: var(--text-muted);
+            font-size: 0.75rem;
         }
 
         @media (max-width: 768px) {
@@ -1288,6 +1316,23 @@ std::string HtmlRenderer::renderScripts() {
             return div.innerHTML;
         }
 
+        // Escape text for safe use in JavaScript string contexts (e.g., onclick handlers)
+        function escapeJavaScript(text) {
+            if (!text) return '';
+            return text
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '\\r')
+                .replace(/\t/g, '\\t')
+                .replace(/\x08/g, '\\b')
+                .replace(/\f/g, '\\f')
+                .replace(/`/g, '\\`')
+                .replace(/\0/g, '\\0')
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
+        }
+
         // Navigation
         function setupNavigation() {
             document.querySelectorAll('.nav-item').forEach(item => {
@@ -1447,13 +1492,15 @@ std::string HtmlRenderer::renderScripts() {
                     items = items.filter(item => !item.is_uhd_4k);
                 }
 
-                // Filter by days ahead
-                const now = new Date();
-                const maxDate = new Date();
+                // Filter by days ahead (compare dates at start of day)
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const maxDate = new Date(today);
                 maxDate.setDate(maxDate.getDate() + parseInt(daysFilter));
                 items = items.filter(item => {
                     const releaseDate = new Date(item.release_date);
-                    return releaseDate >= now && releaseDate <= maxDate;
+                    releaseDate.setHours(0, 0, 0, 0);
+                    return releaseDate >= today && releaseDate <= maxDate;
                 });
 
                 // Sort by release date (ascending)
@@ -1506,12 +1553,29 @@ std::string HtmlRenderer::renderScripts() {
                     ? `/cache/${item.local_image_path.split('/').pop()}`
                     : item.image_url || '';
 
-                // Check if available on supported retailers
+                // Check if available on supported retailers using hostname parsing
                 const productUrl = item.product_url || '';
-                const isAmazon = productUrl.includes('amazon.nl');
-                const isBol = productUrl.includes('bol.com');
+                let isAmazon = false;
+                let isBol = false;
+                let retailerName = '';
+
+                // Determine retailer based on hostname to avoid matching query/redirect URLs
+                try {
+                    const urlObj = new URL(productUrl);
+                    const host = urlObj.hostname.toLowerCase();
+
+                    if (host === 'amazon.nl' || host === 'www.amazon.nl' || host.endsWith('.amazon.nl')) {
+                        isAmazon = true;
+                        retailerName = 'Amazon.nl';
+                    } else if (host === 'bol.com' || host === 'www.bol.com' || host.endsWith('.bol.com')) {
+                        isBol = true;
+                        retailerName = 'Bol.com';
+                    }
+                } catch (e) {
+                    // Invalid URL; leave retailer flags as false
+                }
+
                 const canAddToWishlist = isAmazon || isBol;
-                const retailerName = isAmazon ? 'Amazon.nl' : isBol ? 'Bol.com' : '';
 
                 // Escape strings for safe HTML insertion
                 const escapedTitle = escapeHtml(item.title);
@@ -1519,15 +1583,19 @@ std::string HtmlRenderer::renderScripts() {
                 const escapedUrl = escapeHtml(productUrl);
                 const escapedImageUrl = escapeHtml(imageUrl);
 
+                // Escape for JavaScript context (onclick handlers)
+                const jsSafeUrl = escapeJavaScript(productUrl || '#');
+                const jsSafeTitle = escapeJavaScript(item.title);
+
                 return `
-                    <div class="release-card" onclick="window.open('${escapedUrl || '#'}', '_blank')">
+                    <div class="release-card" onclick="window.open('${jsSafeUrl}', '_blank')">
                         ${imageUrl ? `<img src="${escapedImageUrl}" alt="${escapedTitle}" class="release-card-image" onerror="this.style.display='none'">` : '<div class="release-card-image"></div>'}
                         <div class="release-card-body">
                             <div class="release-card-title">${escapedTitle}</div>
                             <div class="release-card-meta">
                                 <div class="release-card-date">
                                     📅 ${formattedDate}
-                                    <span style="font-weight: normal; color: var(--text-muted); font-size: 0.75rem;">(${timeText})</span>
+                                    <span class="release-time-info">(${timeText})</span>
                                 </div>
                                 <div class="release-card-info">
                                     ${item.is_uhd_4k ? '<span class="release-card-badge uhd">UHD 4K</span>' : '<span class="release-card-badge">Blu-ray</span>'}
@@ -1536,15 +1604,14 @@ std::string HtmlRenderer::renderScripts() {
                                 </div>
                                 ${item.studio ? `<div class="release-card-studio">🎬 ${escapedStudio}</div>` : ''}
                                 ${canAddToWishlist ? `
-                                    <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+                                    <div class="wishlist-button-container">
                                         <button
-                                            class="btn btn-primary"
-                                            style="width: 100%; font-size: 0.875rem; padding: 0.5rem;"
-                                            onclick="event.stopPropagation(); addToWishlistFromCalendar('${productUrl.replace(/'/g, "\\'")}', '${item.title.replace(/'/g, "\\'")}', ${item.is_uhd_4k}, ${item.price || 0})">
+                                            class="btn btn-primary wishlist-button"
+                                            onclick="event.stopPropagation(); addToWishlistFromCalendar('${jsSafeUrl}', '${jsSafeTitle}', ${item.is_uhd_4k}, ${item.price || 0})">
                                             ⭐ Add to Wishlist
                                         </button>
                                     </div>
-                                    <div style="margin-top: 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted);">
+                                    <div class="retailer-info">
                                         Available on ${retailerName}
                                     </div>
                                 ` : ''}
