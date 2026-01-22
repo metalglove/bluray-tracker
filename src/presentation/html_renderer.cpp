@@ -1879,6 +1879,7 @@ std::string HtmlRenderer::renderScripts() {
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
                             ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
+                            ${item.tmdb_id === 0 ? `<button class="btn btn-primary" onclick="enrichWishlistItem(${item.id})" title="Fetch TMDb metadata">🔍</button>` : ''}
                             <button class="btn btn-secondary" onclick="openEditWishlistModal(${item.id})">✏️</button>
                              <button class="btn btn-info" onclick="openPriceHistory(${item.id})">📈</button>
                             <button class="btn btn-danger" onclick="deleteWishlistItem(${item.id})">🗑️</button>
@@ -1975,6 +1976,7 @@ std::string HtmlRenderer::renderScripts() {
                      <td>
                         <div style="display: flex; gap: 0.5rem;">
                             ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
+                            ${item.tmdb_id === 0 ? `<button class="btn btn-primary" onclick="enrichCollectionItem(${item.id})" title="Fetch TMDb metadata">🔍</button>` : ''}
                             <button class="btn btn-secondary" onclick="editCollectionItem(${item.id})">✏️</button>
                             <button class="btn btn-danger" onclick="deleteCollectionItem(${item.id})">🗑️</button>
                         </div>
@@ -2297,6 +2299,44 @@ std::string HtmlRenderer::renderScripts() {
                     loadWishlist(wishlistData.page);
                 } else {
                     showToast('Failed to delete item', 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function enrichWishlistItem(id) {
+            showToast('Fetching TMDb metadata...', 'info');
+
+            try {
+                const res = await fetch(`/api/wishlist/${id}/enrich`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    const confidence = Math.round(data.confidence * 100);
+                    showToast(`Enriched with ${confidence}% confidence`, 'success');
+                    loadWishlist(wishlistData.page);
+                } else {
+                    showToast(data.error || 'Enrichment failed', 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function enrichCollectionItem(id) {
+            showToast('Fetching TMDb metadata...', 'info');
+
+            try {
+                const res = await fetch(`/api/collection/${id}/enrich`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    const confidence = Math.round(data.confidence * 100);
+                    showToast(`Enriched with ${confidence}% confidence`, 'success');
+                    loadCollection(collectionData.page || 1);
+                } else {
+                    showToast(data.error || 'Enrichment failed', 'error');
                 }
             } catch (error) {
                 showToast(`Error: ${error.message}`, 'error');
