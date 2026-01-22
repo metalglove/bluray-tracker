@@ -31,9 +31,14 @@ std::optional<infrastructure::TmdbMovie> TmdbMatchingStrategy::findBestMatch(
         double confidence = calculateConfidence(movie, original_title, year_hint);
         scored_results.emplace_back(confidence, &movie);
 
+        // Safely extract year from release_date (expected format: YYYY-MM-DD)
+        std::string year_str = movie.release_date.length() >= 4
+            ? movie.release_date.substr(0, 4)
+            : "????";
+
         infrastructure::Logger::instance().debug(fmt::format(
             "TMDb match candidate: '{}' ({}) - confidence: {:.2f}",
-            movie.title, movie.release_date.substr(0, 4), confidence
+            movie.title, year_str, confidence
         ));
     }
 
@@ -47,7 +52,7 @@ std::optional<infrastructure::TmdbMovie> TmdbMatchingStrategy::findBestMatch(
     const auto& [best_confidence, best_movie] = scored_results[0];
 
     if (best_confidence < MIN_CONFIDENCE_THRESHOLD) {
-        infrastructure::Logger::instance().warn(fmt::format(
+        infrastructure::Logger::instance().warning(fmt::format(
             "Best TMDb match '{}' has low confidence: {:.2f} (threshold: {:.2f})",
             best_movie->title, best_confidence, MIN_CONFIDENCE_THRESHOLD
         ));
@@ -56,7 +61,9 @@ std::optional<infrastructure::TmdbMovie> TmdbMatchingStrategy::findBestMatch(
 
     infrastructure::Logger::instance().info(fmt::format(
         "Selected TMDb match: '{}' ({}) with confidence {:.2f}",
-        best_movie->title, best_movie->release_date.substr(0, 4), best_confidence
+        best_movie->title,
+        best_movie->release_date.length() >= 4 ? best_movie->release_date.substr(0, 4) : "????",
+        best_confidence
     ));
 
     // Create a copy and set confidence score
@@ -141,7 +148,9 @@ int TmdbMatchingStrategy::extractYearFromTitle(std::string_view title) {
     if (std::regex_search(title_str, match, year_regex)) {
         try {
             return std::stoi(match[1].str());
-        } catch (...) {
+        } catch (const std::invalid_argument&) {
+            return 0;
+        } catch (const std::out_of_range&) {
             return 0;
         }
     }
@@ -150,36 +159,56 @@ int TmdbMatchingStrategy::extractYearFromTitle(std::string_view title) {
 }
 
 int TmdbMatchingStrategy::levenshteinDistance(std::string_view s1, std::string_view s2) {
-    const size_t m = s1.size();
-    const size_t n = s2.size();
+    // Use a space-optimized dynamic programming implementation that only keeps
+    // two rows of the DP table in memory, reducing space from O(m*n) to
+    // O(min(m, n)) while computing the exact Levenshtein distance.
 
-    // Create DP table
-    std::vector<std::vector<int>> dp(m + 1, std::vector<int>(n + 1));
-
-    // Initialize base cases
-    for (size_t i = 0; i <= m; ++i) {
-        dp[i][0] = static_cast<int>(i);
+    // Handle trivial cases
+    if (s1 == s2) {
+        return 0;
     }
+    if (s1.empty()) {
+        return static_cast<int>(s2.size());
+    }
+    if (s2.empty()) {
+        return static_cast<int>(s1.size());
+    }
+
+    // Ensure s2 is the shorter string to minimize memory usage
+    if (s1.size() < s2.size()) {
+        std::swap(s1, s2);
+    }
+
+    const size_t m = s1.size(); // longer string
+    const size_t n = s2.size(); // shorter string
+
+    std::vector<int> previous(n + 1);
+    std::vector<int> current(n + 1);
+
+    // Initialize base row: transforming empty s1 prefix into s2[0..j)
     for (size_t j = 0; j <= n; ++j) {
-        dp[0][j] = static_cast<int>(j);
+        previous[j] = static_cast<int>(j);
     }
 
-    // Fill DP table
     for (size_t i = 1; i <= m; ++i) {
+        current[0] = static_cast<int>(i); // cost of deletions to get empty s2 prefix
+        const char c1 = s1[i - 1];
+
         for (size_t j = 1; j <= n; ++j) {
-            if (s1[i-1] == s2[j-1]) {
-                dp[i][j] = dp[i-1][j-1];
-            } else {
-                dp[i][j] = 1 + std::min({
-                    dp[i-1][j],    // deletion
-                    dp[i][j-1],    // insertion
-                    dp[i-1][j-1]   // substitution
-                });
-            }
+            const char c2 = s2[j - 1];
+            const int cost = (c1 == c2) ? 0 : 1;
+
+            const int deletion    = previous[j] + 1;
+            const int insertion   = current[j - 1] + 1;
+            const int substitution = previous[j - 1] + cost;
+
+            current[j] = std::min({deletion, insertion, substitution});
         }
+
+        previous.swap(current);
     }
 
-    return dp[m][n];
+    return previous[n];
 }
 
 double TmdbMatchingStrategy::calculateConfidence(
@@ -229,10 +258,14 @@ double TmdbMatchingStrategy::calculateConfidence(
     // Normalize vote_average (0-10) to 0-1 scale
     double popularity = movie.vote_average / 10.0;
 
-    // Weighted average
-    double confidence = (title_similarity * 0.7) +
-                       (year_proximity * 0.2) +
-                       (popularity * 0.1);
+    // Weighted average, clamped to [0.0, 1.0] to guard against floating-point rounding
+    double confidence = std::clamp(
+        (title_similarity * 0.7) +
+        (year_proximity * 0.2) +
+        (popularity * 0.1),
+        0.0,
+        1.0
+    );
 
     return confidence;
 }
@@ -259,13 +292,15 @@ EnrichmentResult TmdbEnrichmentService::enrichWishlistItem(
         item.id, item.title
     ));
 
-    // If item already has TMDb ID, fetch details directly
-    if (item.tmdb_id > 0) {
-        return enrichByImdbId(item.imdb_id.empty() ? "" : item.imdb_id);
-    }
+    EnrichmentResult result;
 
-    // Otherwise, search by title
-    EnrichmentResult result = enrichByTitle(item.title);
+    // If item already has TMDb ID and a non-empty IMDb ID, enrich by IMDb ID.
+    // Otherwise, fall back to searching by title.
+    if (item.tmdb_id > 0 && !item.imdb_id.empty()) {
+        result = enrichByImdbId(item.imdb_id);
+    } else {
+        result = enrichByTitle(item.title);
+    }
 
     if (result.success) {
         // Update item with enriched data
@@ -279,7 +314,7 @@ EnrichmentResult TmdbEnrichmentService::enrichWishlistItem(
             item.id, result.tmdb_id, result.confidence_score
         ));
     } else {
-        infrastructure::Logger::instance().warn(fmt::format(
+        infrastructure::Logger::instance().warning(fmt::format(
             "Failed to enrich item {}: {}",
             item.id, result.error_message
         ));
@@ -296,13 +331,15 @@ EnrichmentResult TmdbEnrichmentService::enrichCollectionItem(
         item.id, item.title
     ));
 
-    // If item already has TMDb ID, fetch details directly
-    if (item.tmdb_id > 0) {
-        return enrichByImdbId(item.imdb_id.empty() ? "" : item.imdb_id);
-    }
+    EnrichmentResult result;
 
-    // Otherwise, search by title
-    EnrichmentResult result = enrichByTitle(item.title);
+    // If item already has TMDb ID and a non-empty IMDb ID, enrich by IMDb ID.
+    // Otherwise, fall back to searching by title.
+    if (item.tmdb_id > 0 && !item.imdb_id.empty()) {
+        result = enrichByImdbId(item.imdb_id);
+    } else {
+        result = enrichByTitle(item.title);
+    }
 
     if (result.success) {
         // Update item with enriched data
@@ -316,7 +353,7 @@ EnrichmentResult TmdbEnrichmentService::enrichCollectionItem(
             item.id, result.tmdb_id, result.confidence_score
         ));
     } else {
-        infrastructure::Logger::instance().warn(fmt::format(
+        infrastructure::Logger::instance().warning(fmt::format(
             "Failed to enrich collection item {}: {}",
             item.id, result.error_message
         ));
@@ -329,32 +366,46 @@ BulkEnrichmentProgress TmdbEnrichmentService::enrichMultipleWishlistItems(
     const std::vector<int>& item_ids,
     std::function<void(const BulkEnrichmentProgress&)> progress_callback
 ) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    // Acquire operation lock to ensure single bulk operation at a time
+    std::lock_guard<std::mutex> op_lock(operation_mutex_);
 
-    bulk_progress_ = BulkEnrichmentProgress{};
-    bulk_progress_.total = static_cast<int>(item_ids.size());
-    bulk_progress_.is_active = true;
+    {
+        // Initialize progress (brief lock)
+        std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+        bulk_progress_ = BulkEnrichmentProgress{};
+        bulk_progress_.total = static_cast<int>(item_ids.size());
+        bulk_progress_.is_active = true;
+    }
 
     infrastructure::Logger::instance().info(fmt::format(
         "Starting bulk enrichment of {} wishlist items",
-        bulk_progress_.total
+        item_ids.size()
     ));
 
-    infrastructure::SqliteWishlistRepository repository;
+    infrastructure::repositories::SqliteWishlistRepository repository;
 
     for (int item_id : item_ids) {
-        bulk_progress_.current_item_id = item_id;
+        {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+            bulk_progress_.current_item_id = item_id;
+        }
 
         // Load item from repository
         auto item_opt = repository.findById(item_id);
         if (!item_opt) {
-            infrastructure::Logger::instance().warn(fmt::format(
+            infrastructure::Logger::instance().warning(fmt::format(
                 "Wishlist item {} not found, skipping",
                 item_id
             ));
-            bulk_progress_.failed++;
-            bulk_progress_.processed++;
+            
+            {
+                std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+                bulk_progress_.failed++;
+                bulk_progress_.processed++;
+            }
+            
             if (progress_callback) {
+                std::lock_guard<std::mutex> prog_lock(progress_mutex_);
                 progress_callback(bulk_progress_);
             }
             continue;
@@ -365,41 +416,58 @@ BulkEnrichmentProgress TmdbEnrichmentService::enrichMultipleWishlistItems(
         // Enrich item
         EnrichmentResult result = enrichWishlistItem(item);
 
-        if (result.success) {
-            // Save enriched item back to repository
-            if (repository.update(item)) {
-                bulk_progress_.successful++;
+        {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+            
+            if (result.success) {
+                // Save enriched item back to repository
+                if (repository.update(item)) {
+                    bulk_progress_.successful++;
+                } else {
+                    bulk_progress_.failed++;
+                    infrastructure::Logger::instance().error(fmt::format(
+                        "Failed to save enriched wishlist item {}",
+                        item_id
+                    ));
+                }
             } else {
                 bulk_progress_.failed++;
-                infrastructure::Logger::instance().error(fmt::format(
-                    "Failed to save enriched wishlist item {}",
-                    item_id
-                ));
             }
-        } else {
-            bulk_progress_.failed++;
-        }
 
-        bulk_progress_.processed++;
+            bulk_progress_.processed++;
+        }
 
         // Call progress callback
         if (progress_callback) {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
             progress_callback(bulk_progress_);
         }
 
         // Rate limiting delay (except for last item)
-        if (bulk_progress_.processed < bulk_progress_.total) {
+        int processed_count;
+        int total_count;
+        {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+            processed_count = bulk_progress_.processed;
+            total_count = bulk_progress_.total;
+        }
+        
+        if (processed_count < total_count) {
             sleepForRateLimit();
         }
     }
 
-    bulk_progress_.is_active = false;
+    {
+        std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+        bulk_progress_.is_active = false;
+    }
 
     infrastructure::Logger::instance().info(fmt::format(
         "Bulk enrichment complete: {}/{} successful, {} failed",
         bulk_progress_.successful, bulk_progress_.total, bulk_progress_.failed
     ));
 
+    std::lock_guard<std::mutex> prog_lock(progress_mutex_);
     return bulk_progress_;
 }
 
@@ -407,32 +475,46 @@ BulkEnrichmentProgress TmdbEnrichmentService::enrichMultipleCollectionItems(
     const std::vector<int>& item_ids,
     std::function<void(const BulkEnrichmentProgress&)> progress_callback
 ) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    // Acquire operation lock to ensure single bulk operation at a time
+    std::lock_guard<std::mutex> op_lock(operation_mutex_);
 
-    bulk_progress_ = BulkEnrichmentProgress{};
-    bulk_progress_.total = static_cast<int>(item_ids.size());
-    bulk_progress_.is_active = true;
+    {
+        // Initialize progress (brief lock)
+        std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+        bulk_progress_ = BulkEnrichmentProgress{};
+        bulk_progress_.total = static_cast<int>(item_ids.size());
+        bulk_progress_.is_active = true;
+    }
 
     infrastructure::Logger::instance().info(fmt::format(
         "Starting bulk enrichment of {} collection items",
-        bulk_progress_.total
+        item_ids.size()
     ));
 
-    infrastructure::SqliteCollectionRepository repository;
+    infrastructure::repositories::SqliteCollectionRepository repository;
 
     for (int item_id : item_ids) {
-        bulk_progress_.current_item_id = item_id;
+        {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+            bulk_progress_.current_item_id = item_id;
+        }
 
         // Load item from repository
         auto item_opt = repository.findById(item_id);
         if (!item_opt) {
-            infrastructure::Logger::instance().warn(fmt::format(
+            infrastructure::Logger::instance().warning(fmt::format(
                 "Collection item {} not found, skipping",
                 item_id
             ));
-            bulk_progress_.failed++;
-            bulk_progress_.processed++;
+            
+            {
+                std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+                bulk_progress_.failed++;
+                bulk_progress_.processed++;
+            }
+            
             if (progress_callback) {
+                std::lock_guard<std::mutex> prog_lock(progress_mutex_);
                 progress_callback(bulk_progress_);
             }
             continue;
@@ -443,41 +525,58 @@ BulkEnrichmentProgress TmdbEnrichmentService::enrichMultipleCollectionItems(
         // Enrich item
         EnrichmentResult result = enrichCollectionItem(item);
 
-        if (result.success) {
-            // Save enriched item back to repository
-            if (repository.update(item)) {
-                bulk_progress_.successful++;
+        {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+            
+            if (result.success) {
+                // Save enriched item back to repository
+                if (repository.update(item)) {
+                    bulk_progress_.successful++;
+                } else {
+                    bulk_progress_.failed++;
+                    infrastructure::Logger::instance().error(fmt::format(
+                        "Failed to save enriched collection item {}",
+                        item_id
+                    ));
+                }
             } else {
                 bulk_progress_.failed++;
-                infrastructure::Logger::instance().error(fmt::format(
-                    "Failed to save enriched collection item {}",
-                    item_id
-                ));
             }
-        } else {
-            bulk_progress_.failed++;
-        }
 
-        bulk_progress_.processed++;
+            bulk_progress_.processed++;
+        }
 
         // Call progress callback
         if (progress_callback) {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
             progress_callback(bulk_progress_);
         }
 
         // Rate limiting delay (except for last item)
-        if (bulk_progress_.processed < bulk_progress_.total) {
+        int processed_count;
+        int total_count;
+        {
+            std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+            processed_count = bulk_progress_.processed;
+            total_count = bulk_progress_.total;
+        }
+        
+        if (processed_count < total_count) {
             sleepForRateLimit();
         }
     }
 
-    bulk_progress_.is_active = false;
+    {
+        std::lock_guard<std::mutex> prog_lock(progress_mutex_);
+        bulk_progress_.is_active = false;
+    }
 
     infrastructure::Logger::instance().info(fmt::format(
         "Bulk enrichment complete: {}/{} successful, {} failed",
         bulk_progress_.successful, bulk_progress_.total, bulk_progress_.failed
     ));
 
+    std::lock_guard<std::mutex> prog_lock(progress_mutex_);
     return bulk_progress_;
 }
 
@@ -486,7 +585,7 @@ bool TmdbEnrichmentService::isEnabled() const {
 }
 
 BulkEnrichmentProgress TmdbEnrichmentService::getCurrentProgress() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(progress_mutex_);
     return bulk_progress_;
 }
 

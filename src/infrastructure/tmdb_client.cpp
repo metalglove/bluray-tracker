@@ -202,7 +202,7 @@ std::optional<TmdbMovie> TmdbClient::findByImdbId(std::string_view imdb_id) {
       }
     }
 
-    Logger::instance().warn(fmt::format(
+    Logger::instance().warning(fmt::format(
         "TMDb found no movie for IMDb ID {}",
         imdb_id
     ));
@@ -237,30 +237,31 @@ std::string TmdbClient::buildUrl(
 ) {
   std::string url = fmt::format("{}{}", BASE_URL, endpoint);
 
-  // Simple URL encode helper (for TMDb API, we mainly need to encode spaces and special chars)
+  // URL encode helper using RFC 3986 unreserved characters
   auto url_encode = [](std::string_view str) -> std::string {
     std::string encoded;
     encoded.reserve(str.length() * 3); // Reserve worst case
 
     for (char c : str) {
-      if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      unsigned char uc = static_cast<unsigned char>(c);
+      // RFC 3986: unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
+      if (std::isalnum(uc) || c == '-' || c == '_' || c == '.' || c == '~') {
         encoded += c;
-      } else if (c == ' ') {
-        encoded += "%20";
       } else {
-        encoded += fmt::format("%{:02X}", static_cast<unsigned char>(c));
+        // Percent-encode all other characters
+        encoded += fmt::format("%{:02X}", uc);
       }
     }
 
     return encoded;
   };
 
-  // Add API key
-  url += fmt::format("?api_key={}", api_key_);
-
-  // Add additional parameters
+  // Build URL with query parameters (no API key in URL)
+  bool first_param = true;
   for (const auto& [key, value] : params) {
-    url += fmt::format("&{}={}", key, url_encode(value));
+    url += first_param ? "?" : "&";
+    url += fmt::format("{}={}", key, url_encode(value));
+    first_param = false;
   }
 
   return url;
@@ -269,27 +270,37 @@ std::string TmdbClient::buildUrl(
 std::optional<nlohmann::json> TmdbClient::makeRequest(std::string_view url) {
   // Check rate limit before making request
   if (!checkRateLimit()) {
-    Logger::instance().warn("TMDb rate limit exceeded, waiting...");
+    Logger::instance().warning("TMDb rate limit exceeded, waiting...");
 
-    // Calculate time to wait until window reset
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-        now - rate_limit_state_.window_start
-    ).count();
+    int wait_time = 0;
+    {
+      // Calculate time to wait until window reset
+      std::lock_guard<std::mutex> lock(mutex_);
+      auto now = std::chrono::steady_clock::now();
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+          now - rate_limit_state_.window_start
+      ).count();
 
-    int wait_time = std::max(0L, 10L - elapsed);
+      wait_time = static_cast<int>(std::max(0L, 10L - elapsed));
+    }
+
     if (wait_time > 0) {
       std::this_thread::sleep_for(std::chrono::seconds(wait_time));
     }
 
-    // Reset window
-    rate_limit_state_.window_start = std::chrono::steady_clock::now();
-    rate_limit_state_.requests_made = 0;
+    {
+      // Reset window
+      std::lock_guard<std::mutex> lock(mutex_);
+      rate_limit_state_.window_start = std::chrono::steady_clock::now();
+      rate_limit_state_.requests_made = 0;
+    }
   }
 
-  // Make HTTP request
-  auto response = client_.get(url);
+  // Make HTTP request with Authorization header (Bearer token authentication)
+  std::vector<std::string> headers = {
+    fmt::format("Authorization: Bearer {}", api_key_)
+  };
+  auto response = client_.get(url, headers);
 
   if (!response.success) {
     Logger::instance().error(fmt::format(
