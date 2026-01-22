@@ -102,5 +102,152 @@ isValidValueNormalized(std::string_view value,
                      });
 }
 
+/**
+ * Escapes HTML special characters to prevent XSS attacks
+ * @param str The string to escape
+ * @return Escaped string safe for HTML output
+ */
+inline std::string escapeHtml(std::string_view str) {
+  std::string result;
+  result.reserve(str.size() * 1.2); // Reserve extra space for escapes
+  
+  for (char c : str) {
+    switch (c) {
+      case '&':  result += "&amp;"; break;
+      case '<':  result += "&lt;"; break;
+      case '>':  result += "&gt;"; break;
+      case '"':  result += "&quot;"; break;
+      case '\'': result += "&#39;"; break;
+      default:   result += c; break;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Escapes JavaScript string content to prevent XSS in onclick handlers
+ * @param str The string to escape
+ * @return Escaped string safe for JavaScript string literals
+ */
+inline std::string escapeJs(std::string_view str) {
+  std::string result;
+  result.reserve(str.size() * 1.2);
+  
+  for (char c : str) {
+    switch (c) {
+      case '\\': result += "\\\\"; break;
+      case '\'': result += "\\'"; break;
+      case '"':  result += "\\\""; break;
+      case '\n': result += "\\n"; break;
+      case '\r': result += "\\r"; break;
+      case '\t': result += "\\t"; break;
+      case '<':  result += "\\x3C"; break;
+      case '>':  result += "\\x3E"; break;
+      default:   result += c; break;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Validates TMDb rating is in valid range
+ * @param rating The rating to validate
+ * @return true if rating is between 0.0 and 10.0
+ */
+inline bool isValidTmdbRating(double rating) {
+  return rating >= 0.0 && rating <= 10.0;
+}
+
+/**
+ * Validates IMDb ID format (tt followed by 7-8 digits)
+ * @param imdb_id The IMDb ID to validate
+ * @return true if format is valid
+ */
+inline bool isValidImdbId(std::string_view imdb_id) {
+  if (imdb_id.empty()) return true; // Allow empty for optional field
+  
+  if (imdb_id.size() < 9 || imdb_id.size() > 10) return false;
+  if (imdb_id[0] != 't' || imdb_id[1] != 't') return false;
+  
+  for (size_t i = 2; i < imdb_id.size(); ++i) {
+    if (!std::isdigit(static_cast<unsigned char>(imdb_id[i]))) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Validates YouTube trailer key format (11 characters, alphanumeric with - and _)
+ * @param trailer_key The trailer key to validate
+ * @return true if format is valid
+ */
+inline bool isValidTrailerKey(std::string_view trailer_key) {
+  if (trailer_key.empty()) return true; // Allow empty for optional field
+  
+  if (trailer_key.size() != 11) return false;
+  
+  for (char c : trailer_key) {
+    unsigned char uc = static_cast<unsigned char>(c);
+    if (!std::isalnum(uc) && c != '-' && c != '_') {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Validates tag name (non-empty, reasonable length, safe characters)
+ * @param name The tag name to validate
+ * @param max_length Maximum allowed length (default 50)
+ * @return true if name is valid
+ */
+inline bool isValidTagName(std::string_view name, size_t max_length = 50) {
+  if (name.empty() || name.size() > max_length) return false;
+  
+  // Check for control characters
+  for (char c : name) {
+    unsigned char uc = static_cast<unsigned char>(c);
+    if (uc < 32 || uc == 127) return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Validates CSS hex color format (#RGB or #RRGGBB or #RRGGBBAA)
+ * @param color The color string to validate
+ * @return true if format is valid
+ */
+inline bool isValidHexColor(std::string_view color) {
+  if (color.empty() || color[0] != '#') return false;
+  
+  size_t len = color.size();
+  if (len != 4 && len != 7 && len != 9) return false;
+  
+  for (size_t i = 1; i < len; ++i) {
+    char c = color[i];
+    unsigned char uc = static_cast<unsigned char>(c);
+    if (!std::isxdigit(uc)) return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Sanitizes CSS color to safe default if invalid
+ * @param color The color string to sanitize
+ * @param default_color Default color if validation fails
+ * @return Valid color string
+ */
+inline std::string sanitizeColor(const std::string &color, 
+                                 std::string_view default_color = "#667eea") {
+  return isValidHexColor(color) ? color : std::string(default_color);
+}
+
 } // namespace validation
 } // namespace bluray::infrastructure
