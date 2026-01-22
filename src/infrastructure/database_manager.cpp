@@ -316,7 +316,10 @@ void DatabaseManager::insertDefaultConfig() {
         ('log_level', 'info'),
         ('bluray_calendar_url', 'https://www.blu-ray.com/movies/releasedates.php'),
         ('bluray_calendar_enabled', '1'),
-        ('bluray_calendar_days_ahead', '90')
+        ('bluray_calendar_days_ahead', '90'),
+        ('tmdb_api_key', ''),
+        ('tmdb_auto_enrich', '0'),
+        ('tmdb_enrich_on_add', '1')
     )");
 
   Logger::instance().info("Default configuration inserted");

@@ -1,8 +1,23 @@
 # Blu-ray Tracker - Feature Documentation & Planning
 
-**Version**: 1.0
-**Date**: 2026-01-21
+**Version**: 1.1
+**Date**: 2026-01-22
 **Status**: Living Document
+**Last Verification**: 2026-01-22 - Codebase audit complete, documentation synchronized
+
+---
+
+## 🎉 Recent Completions
+
+Since the last documentation update, the following "Tier 1 Quick Wins" have been fully implemented:
+
+1. ✅ **TMDb/IMDb Rating Display** - Color-coded rating badges on all items (manual entry)
+2. ✅ **Movie Trailers Integration** - YouTube trailer player with modal support
+3. ✅ **Custom Tags & Labels** - Full CRUD API with colored tag pills and management modal
+4. ✅ **Bonus Features Tracking** - Edition type, slipcover, digital copy, and bonus features fields
+5. ✅ **Release Calendar** - Blu-ray.com scraper with calendar view and auto-population on first run
+
+**Next Priority**: Automatic TMDb API enrichment to populate metadata fields automatically
 
 ---
 
@@ -123,12 +138,17 @@
 - ✅ Scraper Rate Limiting
 - ✅ Debounced Search
 - ✅ Security Hardening
+- ✅ Release Calendar (Blu-ray.com integration)
+- ✅ TMDb/IMDb Rating Display (Manual entry via UI)
+- ✅ Movie Trailers Integration (YouTube keys)
+- ✅ Custom Tags & Labels
+- ✅ Bonus Features Tracking (Edition type, slipcover, digital copy)
 
 ### Phase 2: Enhanced Discovery & Alerts (Next Priority)
 
 | Feature | Effort | Value | Status |
 |---------|--------|-------|--------|
-| **IMDb/TMDb Metadata Enrichment** | 3 weeks | Very High | Stub Ready |
+| **Automatic TMDb Metadata Enrichment** | 3 weeks | Very High | **Fields Ready, API Integration Needed** |
 | **IMDb Discovery/Recommendations** | 3-4 weeks | High | Depends on above |
 | **Multi-Site Expansion** | 2-3 weeks/site | High | Extensible |
 | **Custom Alert Rules** | 3 weeks | High | Infrastructure Ready |
@@ -155,11 +175,12 @@ Based on user suggestions, competitive analysis, and research, here are addition
 
 ---
 
-### 🎬 1. Movie Trailers Integration
+### 🎬 1. Movie Trailers Integration ✅ **IMPLEMENTED**
 
 **Priority**: HIGH
 **Effort**: Low-Medium (1-2 weeks)
 **Dependencies**: TMDb API (same as metadata enrichment)
+**Status**: ✅ Complete - Manual entry supported via UI
 
 #### Description
 Embed official movie trailers directly in the item detail views for wishlist and collection items.
@@ -313,11 +334,12 @@ CREATE TABLE disc_specs (
 
 ---
 
-### 🎁 4. Bonus Features / Special Edition Tracking
+### 🎁 4. Bonus Features / Special Edition Tracking ✅ **IMPLEMENTED**
 
 **Priority**: MEDIUM
 **Effort**: Low-Medium (1-2 weeks)
 **Dependencies**: Scraper enhancement or manual entry
+**Status**: ✅ Complete - Edition type, slipcover, digital copy, bonus features tracking available
 
 #### Description
 Track whether a Blu-ray includes bonus content like behind-the-scenes, deleted scenes, commentary tracks, steelbook packaging, etc.
@@ -363,11 +385,12 @@ ALTER TABLE wishlist ADD COLUMN edition_type TEXT;  -- "Standard", "Steelbook", 
 
 ---
 
-### ⭐ 5. IMDb/TMDb Rating Display
+### ⭐ 5. IMDb/TMDb Rating Display ✅ **IMPLEMENTED**
 
 **Priority**: HIGH (Already in Roadmap - this expands it)
 **Effort**: Low (part of metadata enrichment)
 **Dependencies**: TMDb API integration
+**Status**: ✅ Complete - Manual entry supported, automatic enrichment pending
 
 #### Description
 Prominently display IMDb/TMDb ratings on all item cards with visual indicators.
@@ -805,11 +828,12 @@ CREATE TABLE notification_preferences (
 
 ---
 
-### 🏷️ 13. Custom Tags & Labels
+### 🏷️ 13. Custom Tags & Labels ✅ **IMPLEMENTED**
 
 **Priority**: MEDIUM
 **Effort**: Low (1-2 weeks)
 **Dependencies**: None
+**Status**: ✅ Complete - Full CRUD API, tag management modal, colored tags display
 
 #### Description
 User-defined tags for organizing collections beyond built-in categories.
@@ -939,17 +963,17 @@ Machine learning-based price predictions based on historical data.
 
 ### Scoring (Value 1-5, Effort 1-5, Score = Value/Effort)
 
-| # | Feature | Value | Effort | Score | Quick Win? |
-|---|---------|-------|--------|-------|------------|
-| 5 | IMDb Rating Display | 5 | 1 | **5.00** | ✅ |
-| 1 | Movie Trailers | 4 | 2 | **2.00** | ✅ |
-| 2 | Deals Page | 5 | 3 | **1.67** | |
-| 6 | Card-Based UI | 5 | 3 | **1.67** | |
-| 3 | Audio/Subtitles | 4 | 3 | **1.33** | |
-| 4 | Bonus Features | 3 | 2 | **1.50** | ✅ |
-| 8 | Advanced Search | 4 | 3 | **1.33** | |
-| 11 | Statistics Dashboard | 4 | 3 | **1.33** | |
-| 13 | Custom Tags | 3 | 2 | **1.50** | ✅ |
+| # | Feature | Value | Effort | Score | Status |
+|---|---------|-------|--------|-------|--------|
+| 5 | IMDb Rating Display | 5 | 1 | **5.00** | ✅ **DONE** |
+| 1 | Movie Trailers | 4 | 2 | **2.00** | ✅ **DONE** |
+| 4 | Bonus Features | 3 | 2 | **1.50** | ✅ **DONE** |
+| 13 | Custom Tags | 3 | 2 | **1.50** | ✅ **DONE** |
+| 2 | Deals Page | 5 | 3 | **1.67** | 📋 Planned |
+| 6 | Card-Based UI | 5 | 3 | **1.67** | 📋 Planned |
+| 3 | Audio/Subtitles | 4 | 3 | **1.33** | 📋 Planned |
+| 8 | Advanced Search | 4 | 3 | **1.33** | 📋 Planned |
+| 11 | Statistics Dashboard | 4 | 3 | **1.33** | 📋 Planned |
 | 12 | Smart Notifications | 4 | 3 | **1.33** | |
 | 7 | Blu-ray Players (Tweakers) | 3 | 4 | **0.75** | |
 | 15 | Import/Export | 3 | 2 | **1.50** | ✅ |
@@ -961,11 +985,11 @@ Machine learning-based price predictions based on historical data.
 
 ### Recommended Implementation Order
 
-**Tier 1: Quick Wins (1-2 weeks each)**
-1. ⭐ IMDb Rating Display (part of metadata enrichment)
-2. 🎬 Movie Trailers Integration
-3. 🎁 Bonus Features Tracking
-4. 🏷️ Custom Tags & Labels
+**Tier 1: Quick Wins (1-2 weeks each)** ✅ **COMPLETED**
+1. ✅ ⭐ IMDb Rating Display (manual entry - automatic enrichment pending)
+2. ✅ 🎬 Movie Trailers Integration
+3. ✅ 🎁 Bonus Features Tracking
+4. ✅ 🏷️ Custom Tags & Labels
 
 **Tier 2: High Impact (3-4 weeks each)**
 5. 🎨 Card-Based UI Overhaul

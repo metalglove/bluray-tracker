@@ -26,6 +26,10 @@ A modern C++17 application for tracking Blu-ray and UHD 4K movie prices on Dutch
 - **Smart Scraper** - Bol.com variant detection (4K vs standard) and rate limiting
 - **Title Locking** - Prevent scraper from overwriting your custom titles
 - **Price History** - Visual charts tracking price trends over time
+- **Release Calendar** - Track upcoming Blu-ray releases from blu-ray.com
+- **Custom Tags** - Organize your collection with colored tags
+- **Ratings & Trailers** - Add TMDb/IMDb ratings and YouTube trailers
+- **Edition Tracking** - Track special editions, steelbooks, and bonus features
 
 ### 🛠️ Technical Excellence
 - **Modern C++17** - robust and efficient codebase using `fmt` for formatting
@@ -291,6 +295,19 @@ This project is provided as-is for educational and personal use.
 - [Crow](https://github.com/CrowCpp/Crow) - C++ web framework
 - [nlohmann/json](https://github.com/nlohmann/json) - Modern JSON library
 - [gumbo-parser](https://github.com/google/gumbo-parser) - HTML5 parser
+
+---
+
+## Recent Updates (v1.1)
+
+### ✨ New Features
+- **🗓️ Release Calendar** - Browse upcoming Blu-ray releases with one-click wishlist adds
+- **⭐ Ratings Display** - Color-coded TMDb/IMDb ratings on all items
+- **🎬 Movie Trailers** - YouTube trailer player with modal support
+- **🏷️ Custom Tags** - Organize items with custom colored tags
+- **🎁 Bonus Features** - Track edition type, slipcover, digital copy, and more
+
+See [FEATURES.md](FEATURES.md) for the complete feature list and [ROADMAP.md](ROADMAP.md) for upcoming enhancements.
 
 ---
 

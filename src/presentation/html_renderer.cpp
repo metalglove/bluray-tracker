@@ -1097,14 +1097,38 @@ std::string HtmlRenderer::renderMainContent() {
                         <h2 class="card-title">Settings</h2>
                     </div>
                     <form id="settingsForm" onsubmit="saveSettings(event)">
+                        <!-- General Settings -->
+                        <h3 style="margin: 1.5rem 0 1rem; color: var(--text-secondary); font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">General</h3>
                         <div class="form-group">
                             <label class="form-label">Scrape Delay (seconds)</label>
                             <input type="number" class="form-input" id="scrapeDelay" min="1" max="60" required>
+                            <small style="color: var(--text-muted);">Delay between scraping requests to avoid rate limiting</small>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Cache Directory</label>
                             <input type="text" class="form-input" id="cacheDir" required>
                         </div>
+
+                        <!-- TMDb Integration -->
+                        <h3 style="margin: 1.5rem 0 1rem; color: var(--text-secondary); font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🎬 TMDb Integration</h3>
+                        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.95rem;">
+                            Automatically fetch movie metadata from The Movie Database.
+                            <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color: var(--primary);">Get your free API key</a>
+                        </p>
+                        <div class="form-group">
+                            <label class="form-label">TMDb API Key (v3)</label>
+                            <input type="password" class="form-input" id="tmdbApiKey" placeholder="Enter your TMDb API key" autocomplete="off">
+                            <small style="color: var(--text-muted);">Your API key is stored securely and never shared. Leave empty to disable enrichment.</small>
+                            <div id="tmdbKeyStatus" style="margin-top: 0.5rem; font-size: 0.9rem;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-group">
+                                <input type="checkbox" id="tmdbEnrichOnAdd">
+                                <span>Auto-enrich when adding new items</span>
+                            </label>
+                            <small style="color: var(--text-muted); display: block; margin-left: 1.5rem;">Automatically fetch metadata when adding movies to wishlist or collection</small>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">Save Settings</button>
                     </form>
                 </div>
@@ -1855,6 +1879,7 @@ std::string HtmlRenderer::renderScripts() {
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
                             ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
+                            ${(!item.tmdb_id || item.tmdb_id === 0) ? `<button class="btn btn-primary" onclick="enrichWishlistItem(${item.id})" title="Fetch TMDb metadata">🔍</button>` : ''}
                             <button class="btn btn-secondary" onclick="openEditWishlistModal(${item.id})">✏️</button>
                              <button class="btn btn-info" onclick="openPriceHistory(${item.id})">📈</button>
                             <button class="btn btn-danger" onclick="deleteWishlistItem(${item.id})">🗑️</button>
@@ -1951,6 +1976,7 @@ std::string HtmlRenderer::renderScripts() {
                      <td>
                         <div style="display: flex; gap: 0.5rem;">
                             ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
+                            ${(!item.tmdb_id || item.tmdb_id === 0) ? `<button class="btn btn-primary" onclick="enrichCollectionItem(${item.id})" title="Fetch TMDb metadata">🔍</button>` : ''}
                             <button class="btn btn-secondary" onclick="editCollectionItem(${item.id})">✏️</button>
                             <button class="btn btn-danger" onclick="deleteCollectionItem(${item.id})">🗑️</button>
                         </div>
@@ -2279,6 +2305,44 @@ std::string HtmlRenderer::renderScripts() {
             }
         }
 
+        async function enrichWishlistItem(id) {
+            showToast('Fetching TMDb metadata...', 'info');
+
+            try {
+                const res = await fetch(`/api/wishlist/${id}/enrich`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    const confidence = Math.round(data.confidence * 100);
+                    showToast(`Enriched with ${confidence}% confidence`, 'success');
+                    loadWishlist(wishlistData.page);
+                } else {
+                    showToast(data.error || 'Enrichment failed', 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function enrichCollectionItem(id) {
+            showToast('Fetching TMDb metadata...', 'info');
+
+            try {
+                const res = await fetch(`/api/collection/${id}/enrich`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    const confidence = Math.round(data.confidence * 100);
+                    showToast(`Enriched with ${confidence}% confidence`, 'success');
+                    loadCollection(collectionData.page || 1);
+                } else {
+                    showToast(data.error || 'Enrichment failed', 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
         async function addCollectionItem(event) {
             event.preventDefault();
             // TODO: Implementation
@@ -2311,31 +2375,54 @@ std::string HtmlRenderer::renderScripts() {
             try {
                 const res = await fetch('/api/settings');
                 const data = await res.json();
-                
-                document.getElementById('scrapeDelay').value = data.scrape_delay;
-                document.getElementById('cacheDir').value = data.cache_dir;
+
+                document.getElementById('scrapeDelay').value = data.scrape_delay_seconds || 8;
+                document.getElementById('cacheDir').value = data.cache_directory || './cache';
+
+                // TMDb settings
+                const tmdbKeyStatus = document.getElementById('tmdbKeyStatus');
+                if (data.tmdb_api_key_configured) {
+                    tmdbKeyStatus.innerHTML = '<span style="color: var(--success);">✅ API key configured</span>';
+                    // Don't set the actual key value for security
+                    document.getElementById('tmdbApiKey').placeholder = '••••••••••••••••••••';
+                } else {
+                    tmdbKeyStatus.innerHTML = '<span style="color: var(--warning);">⚠️ No API key configured</span>';
+                }
+
+                document.getElementById('tmdbEnrichOnAdd').checked = data.tmdb_enrich_on_add !== false;
             } catch (error) {
                 console.error('Failed to load settings:', error);
+                showToast('Failed to load settings', 'error');
             }
         }
 
         async function saveSettings(event) {
             event.preventDefault();
-            
+
             const data = {
                 scrape_delay_seconds: parseInt(document.getElementById('scrapeDelay').value),
                 cache_directory: document.getElementById('cacheDir').value
             };
-            
+
+            // Only include TMDb API key if it was changed (not placeholder)
+            const tmdbApiKey = document.getElementById('tmdbApiKey').value;
+            if (tmdbApiKey && !tmdbApiKey.startsWith('••')) {
+                data.tmdb_api_key = tmdbApiKey;
+            }
+
+            data.tmdb_enrich_on_add = document.getElementById('tmdbEnrichOnAdd').checked;
+
             try {
                 const res = await fetch('/api/settings', {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
+
                 if (res.ok) {
-                    showToast('Settings saved', 'success');
+                    showToast('Settings saved successfully', 'success');
+                    // Reload settings to update status
+                    loadSettings();
                 } else {
                     showToast('Failed to save settings', 'error');
                 }

@@ -7,6 +7,8 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <thread>
+#include <vector>
 
 namespace bluray::presentation {
 
@@ -18,6 +20,11 @@ public:
   explicit WebFrontend(std::shared_ptr<application::Scheduler> scheduler);
 
   /**
+   * Destructor - joins background threads
+   */
+  ~WebFrontend();
+
+  /**
    * Start web server
    */
   void run(int port = 8080);
@@ -26,6 +33,11 @@ public:
    * Stop web server
    */
   void stop();
+
+  /**
+   * Clean up finished background threads
+   */
+  void cleanupFinishedThreads();
 
   /**
    * Broadcast update to all connected WebSocket clients
@@ -41,6 +53,7 @@ private:
   void setupReleaseCalendarRoutes();
   void setupTagRoutes();
   void setupActionRoutes();
+  void setupEnrichmentRoutes();
   void setupStaticRoutes();
   void setupWebSocketRoute();
   void setupSettingsRoutes();
@@ -62,6 +75,10 @@ private:
   // WebSocket connections
   std::mutex ws_mutex_;
   std::set<crow::websocket::connection *> ws_connections_;
+
+  // Background enrichment threads
+  std::mutex threads_mutex_;
+  std::vector<std::thread> background_threads_;
 
   std::unique_ptr<HtmlRenderer> renderer_;
 };
