@@ -181,12 +181,111 @@ void DatabaseManager::createSchema() {
   execute("CREATE INDEX IF NOT EXISTS idx_release_calendar_url ON "
           "release_calendar(product_url)");
 
+  // Tags table for custom labels
+  execute(R"(
+        CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT NOT NULL DEFAULT '#667eea'
+        )
+    )");
+
+  // Item-tag mappings
+  execute(R"(
+        CREATE TABLE IF NOT EXISTS item_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL,
+            item_type TEXT NOT NULL,
+            tag_id INTEGER NOT NULL,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+            UNIQUE(item_id, item_type, tag_id)
+        )
+    )");
+
+  // Index for tag lookups
+  execute("CREATE INDEX IF NOT EXISTS idx_item_tags_item ON "
+          "item_tags(item_id, item_type)");
+  execute("CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON "
+          "item_tags(tag_id)");
+
   // Migrations
   try {
     execute("ALTER TABLE wishlist ADD COLUMN title_locked INTEGER NOT NULL "
             "DEFAULT 0");
   } catch (...) {
     // Column likely exists
+  }
+
+  // TMDb/IMDb integration columns for wishlist
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN tmdb_id INTEGER DEFAULT 0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN imdb_id TEXT DEFAULT ''");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN tmdb_rating REAL DEFAULT 0.0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN trailer_key TEXT DEFAULT ''");
+  } catch (...) {
+  }
+
+  // Edition & bonus features columns for wishlist
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN edition_type TEXT DEFAULT ''");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN has_slipcover INTEGER DEFAULT 0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN has_digital_copy INTEGER DEFAULT 0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE wishlist ADD COLUMN bonus_features TEXT DEFAULT ''");
+  } catch (...) {
+  }
+
+  // TMDb/IMDb integration columns for collection
+  try {
+    execute("ALTER TABLE collection ADD COLUMN tmdb_id INTEGER DEFAULT 0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE collection ADD COLUMN imdb_id TEXT DEFAULT ''");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE collection ADD COLUMN tmdb_rating REAL DEFAULT 0.0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE collection ADD COLUMN trailer_key TEXT DEFAULT ''");
+  } catch (...) {
+  }
+
+  // Edition & bonus features columns for collection
+  try {
+    execute("ALTER TABLE collection ADD COLUMN edition_type TEXT DEFAULT ''");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE collection ADD COLUMN has_slipcover INTEGER DEFAULT 0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE collection ADD COLUMN has_digital_copy INTEGER DEFAULT 0");
+  } catch (...) {
+  }
+  try {
+    execute("ALTER TABLE collection ADD COLUMN bonus_features TEXT DEFAULT ''");
+  } catch (...) {
   }
 }
 

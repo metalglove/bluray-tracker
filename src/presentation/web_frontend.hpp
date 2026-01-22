@@ -39,6 +39,7 @@ private:
   void setupWishlistRoutes();
   void setupCollectionRoutes();
   void setupReleaseCalendarRoutes();
+  void setupTagRoutes();
   void setupActionRoutes();
   void setupStaticRoutes();
   void setupWebSocketRoute();

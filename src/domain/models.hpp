@@ -47,6 +47,18 @@ struct WishlistItem {
 
   // Scraper override protection
   bool title_locked{false};
+
+  // TMDb/IMDb integration
+  int tmdb_id{0};
+  std::string imdb_id;
+  double tmdb_rating{0.0};
+  std::string trailer_key; // YouTube video key
+
+  // Edition & bonus features
+  std::string edition_type;      // "Standard", "Steelbook", "Collector's", etc.
+  bool has_slipcover{false};
+  bool has_digital_copy{false};
+  std::string bonus_features;    // JSON array of bonus features
 };
 
 /**
@@ -66,6 +78,18 @@ struct CollectionItem {
 
   // Optional notes
   std::string notes;
+
+  // TMDb/IMDb integration
+  int tmdb_id{0};
+  std::string imdb_id;
+  double tmdb_rating{0.0};
+  std::string trailer_key; // YouTube video key
+
+  // Edition & bonus features
+  std::string edition_type;      // "Standard", "Steelbook", "Collector's", etc.
+  bool has_slipcover{false};
+  bool has_digital_copy{false};
+  std::string bonus_features;    // JSON array of bonus features
 };
 
 /**
@@ -86,6 +110,24 @@ struct ReleaseCalendarItem {
   std::string notes;
   std::chrono::system_clock::time_point created_at;
   std::chrono::system_clock::time_point last_updated;
+};
+
+/**
+ * User-defined tag for organizing items
+ */
+struct Tag {
+  int id{0};
+  std::string name;
+  std::string color{"#667eea"}; // Default purple
+};
+
+/**
+ * Mapping between items and tags
+ */
+struct ItemTag {
+  int item_id{0};
+  std::string item_type; // "wishlist" or "collection"
+  int tag_id{0};
 };
 
 /**

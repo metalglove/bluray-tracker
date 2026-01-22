@@ -1,6 +1,9 @@
 #include "html_renderer.hpp"
+#include "../infrastructure/input_validation.hpp"
 
 namespace bluray::presentation {
+
+using namespace infrastructure;
 
 std::string HtmlRenderer::renderSPA() {
   std::string html = renderHead();
@@ -876,6 +879,10 @@ std::string HtmlRenderer::renderSidebar() {
                 <span class="nav-icon">📀</span>
                 <span>Collection</span>
             </a>
+            <a class="nav-item" onclick="openTagsModal()">
+                <span class="nav-icon">🏷️</span>
+                <span>Tags</span>
+            </a>
             <a class="nav-item" data-page="settings">
                 <span class="nav-icon">⚙️</span>
                 <span>Settings</span>
@@ -1147,7 +1154,7 @@ std::string HtmlRenderer::renderModals() {
 
     <!-- Edit Wishlist Modal -->
     <div class="modal" id="editWishlistModal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h3 class="modal-title">Edit Wishlist Item</h3>
                 <button class="close-modal" onclick="closeModal('editWishlistModal')">×</button>
@@ -1180,7 +1187,53 @@ std::string HtmlRenderer::renderModals() {
                         <span>Notify when in stock</span>
                     </label>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Update Item</button>
+
+                <!-- TMDb/IMDb Metadata -->
+                <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                    <h4 style="margin-bottom: 0.75rem; color: var(--text-secondary);">Metadata</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label class="form-label">TMDb Rating</label>
+                            <input type="number" class="form-input" id="editWishlistTmdbRating" step="0.1" min="0" max="10" placeholder="0.0-10.0">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label class="form-label">IMDb ID</label>
+                            <input type="text" class="form-input" id="editWishlistImdbId" placeholder="tt0000000">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label class="form-label">YouTube Trailer Key</label>
+                        <input type="text" class="form-input" id="editWishlistTrailerKey" placeholder="dQw4w9WgXcQ">
+                    </div>
+                </div>
+
+                <!-- Edition & Bonus Features -->
+                <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                    <h4 style="margin-bottom: 0.75rem; color: var(--text-secondary);">Edition & Extras</h4>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label class="form-label">Edition Type</label>
+                        <select class="form-input" id="editWishlistEditionType">
+                            <option value="">Standard</option>
+                            <option value="Steelbook">Steelbook</option>
+                            <option value="Collector's">Collector's Edition</option>
+                            <option value="Ultimate">Ultimate Edition</option>
+                            <option value="Limited">Limited Edition</option>
+                            <option value="Director's Cut">Director's Cut</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="editWishlistHasSlipcover">
+                            <span>Has Slipcover</span>
+                        </label>
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="editWishlistHasDigitalCopy">
+                            <span>Digital Copy</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Update Item</button>
             </form>
             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
                  <button type="button" class="btn btn-danger" style="width: 100%;" onclick="deleteWishlistItem(document.getElementById('editWishlistId').value)">
@@ -1262,6 +1315,41 @@ std::string HtmlRenderer::renderModals() {
         </div>
     </div>
 
+    <!-- Trailer Modal -->
+    <div class="modal" id="trailerModal">
+        <div class="modal-content" style="max-width: 900px; padding: 0;">
+            <div class="modal-header" style="padding: 1rem 1.5rem;">
+                <h3 class="modal-title">Watch Trailer</h3>
+                <button class="close-modal" onclick="closeTrailerModal()">×</button>
+            </div>
+            <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+                <iframe id="trailerIframe"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tags Management Modal -->
+    <div class="modal" id="tagsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Manage Tags</h3>
+                <button class="close-modal" onclick="closeModal('tagsModal')">×</button>
+            </div>
+            <div id="tagsList" style="margin-bottom: 1rem;"></div>
+            <form id="addTagForm" onsubmit="addTag(event)">
+                <div class="form-group" style="display: flex; gap: 0.5rem;">
+                    <input type="text" class="form-input" id="newTagName" placeholder="New tag name" required style="flex: 1;">
+                    <input type="color" id="newTagColor" value="#667eea" style="width: 50px; height: 40px; border: none; cursor: pointer;">
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 )HTML";
@@ -1331,6 +1419,15 @@ std::string HtmlRenderer::renderScripts() {
                 .replace(/`/g, '\\`')
                 .replace(/\0/g, '\\0')
                 .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
+        }
+
+        // Validate hex color and return sanitized value
+        function sanitizeColor(color, defaultColor = '#667eea') {
+            if (!color || typeof color !== 'string') return defaultColor;
+            if (!/^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$|^#[0-9A-Fa-f]{8}$/.test(color)) {
+                return defaultColor;
+            }
+            return color;
         }
 
         // Navigation
@@ -1719,16 +1816,18 @@ std::string HtmlRenderer::renderScripts() {
             tbody.innerHTML = wishlistData.items.map(item => `
                 <tr>
                     <td>
-                        <img src="${item.local_image_path || item.image_url || '/static/placeholder.png'}" 
+                        <img src="${item.local_image_path || item.image_url || '/static/placeholder.png'}"
                              class="item-image" onerror="this.src='https://placehold.co/60x90?text=No+Img'">
                     </td>
                     <td>
-                        <div style="font-weight: 600;">${item.title || 'Loading title...'}</div>
+                        <div style="font-weight: 600;">${escapeHtml(item.title || 'Loading title...')}</div>
                         <div style="font-size: 0.8rem; color: var(--text-muted);">
                             <a href="${item.url}" target="_blank" style="color: var(--primary); text-decoration: none;">
-                                🔗 ${new URL(item.url).hostname}
+                                🔗 ${escapeHtml(new URL(item.url).hostname)}
                             </a>
                         </div>
+                        ${item.tmdb_rating > 0 ? `<div style="margin-top: 0.25rem;"><span class="badge" style="background: ${item.tmdb_rating >= 7 ? 'var(--success)' : item.tmdb_rating >= 5 ? 'var(--warning)' : 'var(--danger)'}; color: white;">⭐ ${item.tmdb_rating.toFixed(1)}</span></div>` : ''}
+                        ${item.tags && item.tags.length > 0 ? `<div style="margin-top: 0.25rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">${item.tags.map(tag => `<span class="badge" style="background: ${sanitizeColor(tag.color)}; color: white; font-size: 0.65rem;">${escapeHtml(tag.name)}</span>`).join('')}</div>` : ''}
                     </td>
                     <td>
                         <div class="stat-value" style="font-size: 1.2rem;">€${item.current_price.toFixed(2)}</div>
@@ -1748,10 +1847,14 @@ std::string HtmlRenderer::renderScripts() {
                      <td>
                         <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
                              ${item.is_uhd_4k ? '<span class="badge badge-warning">4K</span>' : ''}
+                             ${item.edition_type ? `<span class="badge badge-info" style="font-size: 0.65rem;">${escapeHtml(item.edition_type)}</span>` : ''}
+                             ${item.has_slipcover ? '<span class="badge" style="background: #8b5cf6; color: white; font-size: 0.65rem;">Slip</span>' : ''}
+                             ${item.has_digital_copy ? '<span class="badge" style="background: #06b6d4; color: white; font-size: 0.65rem;">Digital</span>' : ''}
                         </div>
                     </td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
+                            ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
                             <button class="btn btn-secondary" onclick="openEditWishlistModal(${item.id})">✏️</button>
                              <button class="btn btn-info" onclick="openPriceHistory(${item.id})">📈</button>
                             <button class="btn btn-danger" onclick="deleteWishlistItem(${item.id})">🗑️</button>
@@ -1824,23 +1927,33 @@ std::string HtmlRenderer::renderScripts() {
                         </div>
                      </td>
                      <td>
-                         <div style="font-weight: 600;">${item.title}</div>
+                         <div style="font-weight: 600;">${escapeHtml(item.title)}</div>
                          <div style="font-size: 0.8rem; color: var(--text-muted);">
                             <a href="${item.url}" target="_blank" style="color: var(--primary); text-decoration: none;">
                                 🔗 Source
                             </a>
                         </div>
+                        ${item.tmdb_rating > 0 ? `<div style="margin-top: 0.25rem;"><span class="badge" style="background: ${item.tmdb_rating >= 7 ? 'var(--success)' : item.tmdb_rating >= 5 ? 'var(--warning)' : 'var(--danger)'}; color: white;">⭐ ${item.tmdb_rating.toFixed(1)}</span></div>` : ''}
+                        ${item.tags && item.tags.length > 0 ? `<div style="margin-top: 0.25rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">${item.tags.map(tag => `<span class="badge" style="background: ${sanitizeColor(tag.color)}; color: white; font-size: 0.65rem;">${escapeHtml(tag.name)}</span>`).join('')}</div>` : ''}
                      </td>
                      <td>
-                        <span class="badge ${item.is_uhd_4k ? 'badge-warning' : 'badge-info'}">
-                            ${item.is_uhd_4k ? '4K UHD' : 'Bluray'}
-                        </span>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <span class="badge ${item.is_uhd_4k ? 'badge-warning' : 'badge-info'}">
+                                ${item.is_uhd_4k ? '4K UHD' : 'Bluray'}
+                            </span>
+                            ${item.edition_type ? `<span class="badge badge-info" style="font-size: 0.65rem;">${escapeHtml(item.edition_type)}</span>` : ''}
+                            ${item.has_slipcover ? '<span class="badge" style="background: #8b5cf6; color: white; font-size: 0.65rem;">Slip</span>' : ''}
+                            ${item.has_digital_copy ? '<span class="badge" style="background: #06b6d4; color: white; font-size: 0.65rem;">Digital</span>' : ''}
+                        </div>
                      </td>
                      <td>€${item.purchase_price.toFixed(2)}</td>
                      <td>${new Date(item.added_at || new Date()).toLocaleDateString()}</td>
                      <td>
-                        <button class="btn btn-secondary" onclick="editCollectionItem(${item.id})">✏️</button>
-                        <button class="btn btn-danger" onclick="deleteCollectionItem(${item.id})">🗑️</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
+                            <button class="btn btn-secondary" onclick="editCollectionItem(${item.id})">✏️</button>
+                            <button class="btn btn-danger" onclick="deleteCollectionItem(${item.id})">🗑️</button>
+                        </div>
                      </td>
                  </tr>
              `).join('');
@@ -1854,13 +1967,139 @@ std::string HtmlRenderer::renderScripts() {
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
         }
-        
+
         window.onclick = (e) => {
             if (e.target.classList.contains('modal')) {
                 e.target.classList.remove('active');
             }
         };
-        
+
+        // Trailer functions
+        function openTrailer(trailerKey) {
+            if (!trailerKey) return;
+            
+            // Validate trailer key format (11 characters, alphanumeric with - and _)
+            const keyString = `${trailerKey}`;
+            const validTrailerKeyPattern = /^[a-zA-Z0-9_-]{11}$/;
+            if (!validTrailerKeyPattern.test(keyString)) {
+                console.error('Invalid trailer key supplied to openTrailer:', keyString);
+                return;
+            }
+
+            const iframe = document.getElementById('trailerIframe');
+            iframe.src = `https://www.youtube.com/embed/${keyString}?autoplay=1`;
+            document.getElementById('trailerModal').classList.add('active');
+        }
+
+        function closeTrailerModal() {
+            const iframe = document.getElementById('trailerIframe');
+            iframe.src = '';
+            document.getElementById('trailerModal').classList.remove('active');
+        }
+
+        // Tag functions
+        let allTags = [];
+
+        async function loadTags() {
+            try {
+                const res = await fetch('/api/tags');
+                const data = await res.json();
+                allTags = data.tags || [];
+                renderTagsList();
+            } catch (error) {
+                console.error('Failed to load tags:', error);
+            }
+        }
+
+        function renderTagsList() {
+            const container = document.getElementById('tagsList');
+            if (!container) return;
+
+            if (allTags.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted);">No tags created yet.</p>';
+                return;
+            }
+
+            container.innerHTML = allTags.map(tag => `
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 0.5rem;">
+                    <span class="badge" style="background: ${sanitizeColor(tag.color)}; color: white;">${escapeHtml(tag.name)}</span>
+                    <div style="flex: 1;"></div>
+                    <button class="btn btn-danger" style="padding: 0.25rem 0.5rem;" onclick="deleteTag(${tag.id})">×</button>
+                </div>
+            `).join('');
+        }
+
+        async function addTag(event) {
+            event.preventDefault();
+            const name = document.getElementById('newTagName').value;
+            const color = document.getElementById('newTagColor').value;
+
+            try {
+                const res = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color })
+                });
+
+                if (res.ok) {
+                    showToast('Tag created!', 'success');
+                    document.getElementById('newTagName').value = '';
+                    loadTags();
+                } else {
+                    showToast('Failed to create tag (name may already exist)', 'error');
+                }
+            } catch (error) {
+                showToast('Error creating tag', 'error');
+            }
+        }
+
+        async function deleteTag(tagId) {
+            if (!confirm('Delete this tag? It will be removed from all items.')) return;
+
+            try {
+                const res = await fetch(`/api/tags/${tagId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showToast('Tag deleted', 'success');
+                    loadTags();
+                    loadWishlist(wishlistData.page);
+                    loadCollection(collectionData.page);
+                }
+            } catch (error) {
+                showToast('Error deleting tag', 'error');
+            }
+        }
+
+        function openTagsModal() {
+            loadTags();
+            document.getElementById('tagsModal').classList.add('active');
+        }
+
+        async function addTagToItem(tagId, itemId, itemType) {
+            try {
+                const res = await fetch(`/api/${itemType}/${itemId}/tags/${tagId}`, { method: 'POST' });
+                if (res.ok) {
+                    showToast('Tag added!', 'success');
+                    if (itemType === 'wishlist') loadWishlist(wishlistData.page);
+                    else loadCollection(collectionData.page);
+                }
+            } catch (error) {
+                showToast('Error adding tag', 'error');
+            }
+        }
+
+        async function removeTagFromItem(tagId, itemId, itemType) {
+            try {
+                const res = await fetch(`/api/${itemType}/${itemId}/tags/${tagId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showToast('Tag removed', 'success');
+                    if (itemType === 'wishlist') loadWishlist(wishlistData.page);
+                    else loadCollection(collectionData.page);
+                }
+            } catch (error) {
+                showToast('Error removing tag', 'error');
+            }
+        }
+
         // Actions
         function openAddWishlistModal() {
             document.getElementById('addWishlistForm').reset();
@@ -1870,14 +2109,24 @@ std::string HtmlRenderer::renderScripts() {
         function openEditWishlistModal(id) {
             const item = wishlistData.items.find(i => i.id === id);
             if (!item) return;
-            
+
             document.getElementById('editWishlistId').value = id;
             document.getElementById('editWishlistTitle').value = item.title;
             document.getElementById('editWishlistTitleLocked').checked = item.title_locked;
             document.getElementById('editWishlistPrice').value = item.desired_max_price;
             document.getElementById('editWishlistNotifyPrice').checked = item.notify_on_price_drop;
             document.getElementById('editWishlistNotifyStock').checked = item.notify_on_stock;
-            
+
+            // Metadata fields
+            document.getElementById('editWishlistTmdbRating').value = item.tmdb_rating || '';
+            document.getElementById('editWishlistImdbId').value = item.imdb_id || '';
+            document.getElementById('editWishlistTrailerKey').value = item.trailer_key || '';
+
+            // Edition & bonus features
+            document.getElementById('editWishlistEditionType').value = item.edition_type || '';
+            document.getElementById('editWishlistHasSlipcover').checked = item.has_slipcover || false;
+            document.getElementById('editWishlistHasDigitalCopy').checked = item.has_digital_copy || false;
+
             openModal('editWishlistModal');
         }
 
@@ -1977,12 +2226,22 @@ std::string HtmlRenderer::renderScripts() {
             event.preventDefault();
 
             const id = document.getElementById('editWishlistId').value;
+            const tmdbRating = document.getElementById('editWishlistTmdbRating').value;
+
             const data = {
                 title: document.getElementById('editWishlistTitle').value,
                 title_locked: document.getElementById('editWishlistTitleLocked').checked,
                 desired_max_price: parseFloat(document.getElementById('editWishlistPrice').value),
                 notify_on_price_drop: document.getElementById('editWishlistNotifyPrice').checked,
-                notify_on_stock: document.getElementById('editWishlistNotifyStock').checked
+                notify_on_stock: document.getElementById('editWishlistNotifyStock').checked,
+                // Metadata
+                tmdb_rating: tmdbRating ? parseFloat(tmdbRating) : 0,
+                imdb_id: document.getElementById('editWishlistImdbId').value || '',
+                trailer_key: document.getElementById('editWishlistTrailerKey').value || '',
+                // Edition & bonus
+                edition_type: document.getElementById('editWishlistEditionType').value || '',
+                has_slipcover: document.getElementById('editWishlistHasSlipcover').checked,
+                has_digital_copy: document.getElementById('editWishlistHasDigitalCopy').checked
             };
 
             try {

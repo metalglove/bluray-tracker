@@ -22,8 +22,9 @@ int SqliteWishlistRepository::add(const domain::WishlistItem &item) {
         INSERT INTO wishlist (
             url, title, title_locked, current_price, desired_max_price, in_stock, is_uhd_4k,
             image_url, local_image_path, source, notify_on_price_drop, notify_on_stock,
-            created_at, last_checked
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            created_at, last_checked, tmdb_id, imdb_id, tmdb_rating, trailer_key,
+            edition_type, has_slipcover, has_digital_copy, bonus_features
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
   const auto created_at_str = timePointToString(item.created_at);
@@ -47,6 +48,17 @@ int SqliteWishlistRepository::add(const domain::WishlistItem &item) {
                     SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt.get(), 14, last_checked_str.c_str(), -1,
                     SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 15, item.tmdb_id);
+  sqlite3_bind_text(stmt.get(), 16, item.imdb_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_double(stmt.get(), 17, item.tmdb_rating);
+  sqlite3_bind_text(stmt.get(), 18, item.trailer_key.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 19, item.edition_type.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 20, item.has_slipcover ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 21, item.has_digital_copy ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 22, item.bonus_features.c_str(), -1,
+                    SQLITE_TRANSIENT);
 
   if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
     Logger::instance().error(fmt::format("Failed to insert wishlist item: {}",
@@ -65,7 +77,9 @@ bool SqliteWishlistRepository::update(const domain::WishlistItem &item) {
         UPDATE wishlist SET
             title = ?, title_locked = ?, current_price = ?, desired_max_price = ?, in_stock = ?,
             is_uhd_4k = ?, image_url = ?, local_image_path = ?, source = ?,
-            notify_on_price_drop = ?, notify_on_stock = ?, last_checked = ?
+            notify_on_price_drop = ?, notify_on_stock = ?, last_checked = ?,
+            tmdb_id = ?, imdb_id = ?, tmdb_rating = ?, trailer_key = ?,
+            edition_type = ?, has_slipcover = ?, has_digital_copy = ?, bonus_features = ?
         WHERE id = ?
     )");
 
@@ -86,7 +100,18 @@ bool SqliteWishlistRepository::update(const domain::WishlistItem &item) {
   sqlite3_bind_int(stmt.get(), 11, item.notify_on_stock ? 1 : 0);
   sqlite3_bind_text(stmt.get(), 12, last_checked_str.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 13, item.id);
+  sqlite3_bind_int(stmt.get(), 13, item.tmdb_id);
+  sqlite3_bind_text(stmt.get(), 14, item.imdb_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_double(stmt.get(), 15, item.tmdb_rating);
+  sqlite3_bind_text(stmt.get(), 16, item.trailer_key.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 17, item.edition_type.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 18, item.has_slipcover ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 19, item.has_digital_copy ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 20, item.bonus_features.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 21, item.id);
 
   return sqlite3_step(stmt.get()) == SQLITE_DONE;
 }
@@ -97,7 +122,8 @@ static const std::string kColumnList =
     "is_uhd_4k, "
     "image_url, local_image_path, source, notify_on_price_drop, "
     "notify_on_stock, "
-    "created_at, last_checked";
+    "created_at, last_checked, tmdb_id, imdb_id, tmdb_rating, trailer_key, "
+    "edition_type, has_slipcover, has_digital_copy, bonus_features";
 
 bool SqliteWishlistRepository::remove(int id) {
   auto &db = DatabaseManager::instance();
@@ -320,6 +346,30 @@ SqliteWishlistRepository::fromStatement(sqlite3_stmt *stmt) {
 
   item.created_at = stringToTimePoint(created_at);
   item.last_checked = stringToTimePoint(last_checked);
+
+  // TMDb/IMDb integration fields
+  item.tmdb_id = sqlite3_column_int(stmt, 15);
+  if (const char *imdb_id =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 16))) {
+    item.imdb_id = imdb_id;
+  }
+  item.tmdb_rating = sqlite3_column_double(stmt, 17);
+  if (const char *trailer_key =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 18))) {
+    item.trailer_key = trailer_key;
+  }
+
+  // Edition & bonus features fields
+  if (const char *edition_type =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 19))) {
+    item.edition_type = edition_type;
+  }
+  item.has_slipcover = sqlite3_column_int(stmt, 20) != 0;
+  item.has_digital_copy = sqlite3_column_int(stmt, 21) != 0;
+  if (const char *bonus_features =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 22))) {
+    item.bonus_features = bonus_features;
+  }
 
   return item;
 }
