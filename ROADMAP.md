@@ -1,8 +1,8 @@
 # Blu-ray Tracker - Feature Roadmap & Implementation Plan
 
-**Version**: 1.0
-**Date**: 2026-01-19
-**Status**: Execution Phase
+**Version**: 1.1
+**Date**: 2026-01-22
+**Status**: Execution Phase - Tier 1 Complete
 
 ## Executive Summary
 
@@ -12,7 +12,7 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 - **Implementation effort** (development complexity, time investment)
 - **Strategic fit** (alignment with project goals)
 
-**Key Achievement**: Phase 1 foundation (Price History) and several usability enhancements (Collection Edit, Title Locking) are now **COMPLETED**.
+**Key Achievement**: Phase 1 foundation (Price History) and several usability enhancements (Collection Edit, Title Locking) are now **COMPLETED**. Additionally, all Tier 1 "Quick Wins" from FEATURES.md have been implemented (Ratings, Trailers, Tags, Bonus Features).
 
 ---
 
@@ -25,8 +25,13 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 
 | # | Feature | Value | Effort | Score | Phase | Status |
 |---|---------|-------|--------|-------|-------|--------|
-| 3 | **Price History Visualization** | 4 | 2 | **2.00** | 1 | **Completed** |
-| 1 | **IMDb/TMDb Metadata Enrichment** | 5 | 3 | **1.67** | 1 | Stub Needed |
+| 3 | **Price History Visualization** | 4 | 2 | **2.00** | 1 | ✅ **Completed** |
+| 10 | **Release Calendar** | 4 | 3 | **1.33** | 1 | ✅ **Completed** |
+| - | **TMDb/IMDb Ratings (Manual)** | 5 | 1 | **5.00** | 1 | ✅ **Completed** |
+| - | **Movie Trailers** | 4 | 2 | **2.00** | 1 | ✅ **Completed** |
+| - | **Custom Tags** | 3 | 2 | **1.50** | 1 | ✅ **Completed** |
+| - | **Bonus Features Tracking** | 3 | 2 | **1.50** | 1 | ✅ **Completed** |
+| 1 | **Automatic TMDb API Enrichment** | 5 | 3 | **1.67** | 2 | **Fields Ready** |
 | 4 | **Multi-Site Expansion** | 4 | 3 | **1.33** | 2 | Extensible |
 | 9 | **Custom Alert Rules** | 4 | 3 | **1.33** | 2 | Infrastructure Ready |
 | 2 | **IMDb Discovery/Recommendations** | 4 | 4 | **1.00** | 2 | Depends on #1 |
@@ -34,43 +39,97 @@ This roadmap organizes the 9 proposed feature enhancements into a phased impleme
 | 8 | **Backup & Cloud Sync** | 4 | 4 | **1.00** | 3 | Infrastructure |
 | 5 | **Progressive Web App (PWA)** | 3 | 4 | **0.75** | 3 | Frontend Heavy |
 | 7 | **Social Sharing (X/Twitter)** | 2 | 3 | **0.67** | 4 | Low Priority |
-| 10 | **Release Calendar** | 4 | 3 | **1.33** | 2 | New Feature |
 
 
 ---
 
 
 
-## Phase 1: Quick Wins & Foundations (Completed)
- 
+## Phase 1: Quick Wins & Foundations ✅ **COMPLETED**
+
 ### 1. Price History Visualization ⭐ **COMPLETED**
- 
+
 **Status**: **Live in v1.1**
 **Effort**: LOW (Completed)
 **Value**: HIGH
- 
+
 **Delivered**:
 - ✅ Backend: Scheduler inserts records, API serves history JSON.
 - ✅ Frontend: Chart.js integration with target price lines and interactive tooltips.
 - ✅ Modal: "View History" button in Wishlist.
+
+---
+
+### 1b. Usability Enhancements ✅ **COMPLETED**
+- ✅ **Wishlist Title Locking**: Prevent scraper overwrites.
+- ✅ **Collection Editing**: Edit modal for collection capabilities.
+- ✅ **Scraper Rate Limiting**: Throttling to prevent bans.
+- ✅ **Debounced Search**: Responsive search for large collections.
+- ✅ **Security Hardening**: Log sanitization and SQL injection prevention.
+- ✅ **Bol.com Variant Fix**: Strict ID matching for 4K/BD accuracy.
+
+---
+
+### 1c. Tier 1 "Quick Wins" Features ✅ **COMPLETED**
+
+**Status**: **Live in v1.1**
+**Total Effort**: LOW-MEDIUM (Completed)
+**Value**: VERY HIGH
+
+**Delivered**:
+
+#### Release Calendar Integration
+- ✅ **Database**: release_calendar table with comprehensive fields
+- ✅ **Repository**: Full CRUD operations with pagination
+- ✅ **Scraper**: Blu-ray.com release calendar scraper
+- ✅ **API**: `/api/release-calendar` endpoints (GET, POST, DELETE)
+- ✅ **Frontend**: Dashboard integration with calendar grid view
+- ✅ **CLI**: `--scrape-calendar` mode for scheduled updates
+- ✅ **Auto-populate**: First-run automatic data fetch for polished UX
+
+#### TMDb/IMDb Rating Display (Manual Entry)
+- ✅ **Database**: tmdb_id, imdb_id, tmdb_rating columns added
+- ✅ **API**: PUT endpoints support metadata updates
+- ✅ **Frontend**: Color-coded rating badges (Green: 7+, Yellow: 5-7, Red: <5)
+- ✅ **Edit Forms**: Fields for TMDb ID, IMDb ID, and rating
+- ✅ **Display**: Rating shown on all wishlist and collection item cards
+
+#### Movie Trailers Integration
+- ✅ **Database**: trailer_key column for YouTube video keys
+- ✅ **API**: PUT endpoints support trailer key updates
+- ✅ **Frontend**: "Watch Trailer" button with 🎬 icon
+- ✅ **Modal**: Embedded YouTube player with responsive iframe
+- ✅ **Edit Forms**: Field for entering YouTube video keys
+
+#### Custom Tags & Labels
+- ✅ **Database**: tags table (id, name, color) and item_tags junction table
+- ✅ **Repository**: Full CRUD with tag-item associations
+- ✅ **API**: `/api/tags` endpoints (GET, POST, PUT, DELETE)
+- ✅ **API**: Tag assignment endpoints for wishlist/collection items
+- ✅ **Frontend**: Tag management modal accessible from sidebar
+- ✅ **Frontend**: Colored tag pills displayed on items
+- ✅ **UI**: Tag filtering and search capabilities
+
+#### Bonus Features Tracking
+- ✅ **Database**: edition_type, has_slipcover, has_digital_copy, bonus_features columns
+- ✅ **API**: PUT endpoints support edition metadata updates
+- ✅ **Frontend**: Edition type badges displayed on items
+- ✅ **Edit Forms**: Fields for edition type, slipcover, digital copy, bonus features
+- ✅ **Display**: Special edition indicators (Steelbook, Collector's, etc.)
  
 ---
 
-### 1b. Usability Enhancements (Completed)
-- **Wishlist Title Locking**: Prevent scraper overwrites.
-- **Collection Editing**: Edit modal for collection capabilities.
-- **Scraper Rate Limiting**: Throttling to prevent bans.
-- **Debounced Search**: Responsive search for large collections.
-- **Security Hardening**: Log sanitization and SQL injection prevention.
-- **Bol.com Variant Fix**: Strict ID matching for 4K/BD accuracy.
- 
----
+### 2. Automatic TMDb API Enrichment ⭐ **NEXT PRIORITY**
 
-### 2. IMDb/TMDb Metadata Enrichment ⭐ **NEXT PRIORITY**
+**Status**: Manual entry complete, automatic API integration needed
+**Effort**: MEDIUM (2-3 weeks)
+**Value**: VERY HIGH (enables Feature 3 - Discovery/Recommendations)
 
-**Status**: No stub exists, clean slate
-**Effort**: MEDIUM (3 weeks)
-**Value**: VERY HIGH (enables Feature 2)
+**Current State**:
+- ✅ Database fields exist: tmdb_id, imdb_id, tmdb_rating, trailer_key
+- ✅ Frontend displays ratings, trailers, and metadata
+- ✅ API supports updating metadata via PUT requests
+- ⏳ **Missing**: Automatic TMDb API integration for enrichment
 
 #### Architecture
 
@@ -566,16 +625,26 @@ private:
 
 ## Success Criteria
 
-### Phase 1 (Weeks 1-8)
-- [ ] Price history charts display for all wishlist items
-- [ ] 80%+ of items successfully enriched with IMDb data
-- [ ] Zero regression in existing functionality
+### Phase 1 (Weeks 1-8) ✅ **COMPLETED**
+- ✅ Price history charts display for all wishlist items
+- ✅ Release calendar fully functional with auto-population
+- ✅ Manual metadata entry (ratings, trailers, tags, bonus features)
+- ✅ Zero regression in existing functionality
 
-### Phase 2 (Weeks 9-16)
+**Completed Items:**
+- Price History Visualization
+- Release Calendar (Blu-ray.com integration)
+- TMDb/IMDb Rating Display (manual entry)
+- Movie Trailers Integration
+- Custom Tags & Labels
+- Bonus Features Tracking
+- All usability enhancements (title locking, collection editing, etc.)
+
+### Phase 2 (Weeks 9-16) - **IN PROGRESS**
+- [ ] Automatic TMDb API enrichment (80%+ success rate)
 - [ ] Discovery page shows 20+ personalized recommendations
 - [ ] 2 new scrapers added (Coolblue, MediaMarkt)
 - [ ] Custom alert rules functional with 95%+ accuracy
-- [ ] Release calendar populated with 50+ upcoming titles
 
 ### Phase 3 (Weeks 17-24)
 
@@ -640,10 +709,11 @@ While implementing new features, address these maintenance items:
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-01-16
+**Document Version**: 1.1
+**Last Updated**: 2026-01-22
 **Maintained By**: Claude (AI Assistant)
 **Review Cycle**: Bi-weekly
+**Last Verification**: 2026-01-22 - Codebase audit complete, Phase 1 verified as complete
 
 ---
 
