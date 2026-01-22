@@ -15,8 +15,9 @@ int SqliteCollectionRepository::add(const domain::CollectionItem &item) {
   auto stmt = db.prepare(R"(
         INSERT INTO collection (
             url, title, purchase_price, is_uhd_4k, image_url, local_image_path,
-            source, notes, purchased_at, added_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            source, notes, purchased_at, added_at, tmdb_id, imdb_id, tmdb_rating,
+            trailer_key, edition_type, has_slipcover, has_digital_copy, bonus_features
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     )");
 
   const auto purchased_at_str = timePointToString(item.purchased_at);
@@ -35,6 +36,17 @@ int SqliteCollectionRepository::add(const domain::CollectionItem &item) {
   sqlite3_bind_text(stmt.get(), 9, purchased_at_str.c_str(), -1,
                     SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt.get(), 10, added_at_str.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 11, item.tmdb_id);
+  sqlite3_bind_text(stmt.get(), 12, item.imdb_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_double(stmt.get(), 13, item.tmdb_rating);
+  sqlite3_bind_text(stmt.get(), 14, item.trailer_key.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 15, item.edition_type.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 16, item.has_slipcover ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 17, item.has_digital_copy ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 18, item.bonus_features.c_str(), -1,
+                    SQLITE_TRANSIENT);
 
   if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
     Logger::instance().error(fmt::format("Failed to insert collection item: {}",
@@ -52,7 +64,9 @@ bool SqliteCollectionRepository::update(const domain::CollectionItem &item) {
   auto stmt = db.prepare(R"(
         UPDATE collection SET
             title = ?, purchase_price = ?, is_uhd_4k = ?, image_url = ?,
-            local_image_path = ?, source = ?, notes = ?, purchased_at = ?
+            local_image_path = ?, source = ?, notes = ?, purchased_at = ?,
+            tmdb_id = ?, imdb_id = ?, tmdb_rating = ?, trailer_key = ?,
+            edition_type = ?, has_slipcover = ?, has_digital_copy = ?, bonus_features = ?
         WHERE id = ?
     )");
 
@@ -69,7 +83,18 @@ bool SqliteCollectionRepository::update(const domain::CollectionItem &item) {
   sqlite3_bind_text(stmt.get(), 7, item.notes.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt.get(), 8, purchased_at_str.c_str(), -1,
                     SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt.get(), 9, item.id);
+  sqlite3_bind_int(stmt.get(), 9, item.tmdb_id);
+  sqlite3_bind_text(stmt.get(), 10, item.imdb_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_double(stmt.get(), 11, item.tmdb_rating);
+  sqlite3_bind_text(stmt.get(), 12, item.trailer_key.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt.get(), 13, item.edition_type.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 14, item.has_slipcover ? 1 : 0);
+  sqlite3_bind_int(stmt.get(), 15, item.has_digital_copy ? 1 : 0);
+  sqlite3_bind_text(stmt.get(), 16, item.bonus_features.c_str(), -1,
+                    SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt.get(), 17, item.id);
 
   return sqlite3_step(stmt.get()) == SQLITE_DONE;
 }
@@ -274,6 +299,30 @@ SqliteCollectionRepository::fromStatement(sqlite3_stmt *stmt) {
 
   item.purchased_at = stringToTimePoint(purchased_at);
   item.added_at = stringToTimePoint(added_at);
+
+  // TMDb/IMDb integration fields
+  item.tmdb_id = sqlite3_column_int(stmt, 11);
+  if (const char *imdb_id =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 12))) {
+    item.imdb_id = imdb_id;
+  }
+  item.tmdb_rating = sqlite3_column_double(stmt, 13);
+  if (const char *trailer_key =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 14))) {
+    item.trailer_key = trailer_key;
+  }
+
+  // Edition & bonus features fields
+  if (const char *edition_type =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 15))) {
+    item.edition_type = edition_type;
+  }
+  item.has_slipcover = sqlite3_column_int(stmt, 16) != 0;
+  item.has_digital_copy = sqlite3_column_int(stmt, 17) != 0;
+  if (const char *bonus_features =
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, 18))) {
+    item.bonus_features = bonus_features;
+  }
 
   return item;
 }

@@ -6,6 +6,7 @@
 #include "../infrastructure/repositories/collection_repository.hpp"
 #include "../infrastructure/repositories/price_history_repository.hpp"
 #include "../infrastructure/repositories/release_calendar_repository.hpp"
+#include "../infrastructure/repositories/tag_repository.hpp"
 #include "../infrastructure/repositories/wishlist_repository.hpp"
 #include "html_renderer.hpp"
 #include <filesystem>
@@ -45,6 +46,7 @@ void WebFrontend::setupRoutes() {
   setupWishlistRoutes();
   setupCollectionRoutes();
   setupReleaseCalendarRoutes();
+  setupTagRoutes();
   setupActionRoutes();
   setupStaticRoutes();
   setupWebSocketRoute();
@@ -247,6 +249,26 @@ void WebFrontend::setupWishlistRoutes() {
           item->notify_on_price_drop = body["notify_on_price_drop"].b();
         if (body.has("notify_on_stock"))
           item->notify_on_stock = body["notify_on_stock"].b();
+
+        // TMDb/IMDb integration fields
+        if (body.has("tmdb_id"))
+          item->tmdb_id = body["tmdb_id"].i();
+        if (body.has("imdb_id"))
+          item->imdb_id = body["imdb_id"].s();
+        if (body.has("tmdb_rating"))
+          item->tmdb_rating = body["tmdb_rating"].d();
+        if (body.has("trailer_key"))
+          item->trailer_key = body["trailer_key"].s();
+
+        // Edition & bonus features fields
+        if (body.has("edition_type"))
+          item->edition_type = body["edition_type"].s();
+        if (body.has("has_slipcover"))
+          item->has_slipcover = body["has_slipcover"].b();
+        if (body.has("has_digital_copy"))
+          item->has_digital_copy = body["has_digital_copy"].b();
+        if (body.has("bonus_features"))
+          item->bonus_features = body["bonus_features"].s();
 
         if (repo.update(*item)) {
           // Broadcast update via WebSocket
@@ -452,6 +474,26 @@ void WebFrontend::setupCollectionRoutes() {
           // Currently logic assumes is_uhd_4k boolean.
         }
 
+        // TMDb/IMDb integration fields
+        if (x.has("tmdb_id"))
+          item.tmdb_id = x["tmdb_id"].i();
+        if (x.has("imdb_id"))
+          item.imdb_id = x["imdb_id"].s();
+        if (x.has("tmdb_rating"))
+          item.tmdb_rating = x["tmdb_rating"].d();
+        if (x.has("trailer_key"))
+          item.trailer_key = x["trailer_key"].s();
+
+        // Edition & bonus features fields
+        if (x.has("edition_type"))
+          item.edition_type = x["edition_type"].s();
+        if (x.has("has_slipcover"))
+          item.has_slipcover = x["has_slipcover"].b();
+        if (x.has("has_digital_copy"))
+          item.has_digital_copy = x["has_digital_copy"].b();
+        if (x.has("bonus_features"))
+          item.bonus_features = x["bonus_features"].s();
+
         if (repo.update(item)) {
           return crow::response(200);
         }
@@ -646,6 +688,178 @@ void WebFrontend::setupReleaseCalendarRoutes() {
           return crow::response(200, "Item deleted");
         }
         return crow::response(404, "Item not found");
+      });
+}
+
+void WebFrontend::setupTagRoutes() {
+  // Get all tags
+  CROW_ROUTE(app_, "/api/tags")
+      .methods("GET"_method)([]() {
+        SqliteTagRepository repo;
+        auto tags = repo.findAll();
+
+        crow::json::wvalue response;
+        response["tags"] = crow::json::wvalue::list();
+
+        for (size_t i = 0; i < tags.size(); ++i) {
+          crow::json::wvalue tag_json;
+          tag_json["id"] = tags[i].id;
+          tag_json["name"] = tags[i].name;
+          tag_json["color"] = tags[i].color;
+          response["tags"][i] = std::move(tag_json);
+        }
+
+        return crow::response(200, response);
+      });
+
+  // Create a new tag
+  CROW_ROUTE(app_, "/api/tags")
+      .methods("POST"_method)([this](const crow::request &req) {
+        auto body = crow::json::load(req.body);
+        if (!body) {
+          return crow::response(400, "Invalid JSON");
+        }
+
+        if (!body.has("name")) {
+          return crow::response(400, "Missing required field: name");
+        }
+
+        SqliteTagRepository repo;
+
+        domain::Tag tag;
+        tag.name = body["name"].s();
+        tag.color = body.has("color") ? std::string(body["color"].s())
+                                      : std::string("#667eea");
+
+        int id = repo.add(tag);
+        if (id > 0) {
+          tag.id = id;
+
+          crow::json::wvalue json;
+          json["id"] = tag.id;
+          json["name"] = tag.name;
+          json["color"] = tag.color;
+
+          // Broadcast update
+          crow::json::wvalue ws_msg;
+          ws_msg["type"] = "tag_added";
+          ws_msg["tag"] = crow::json::wvalue(json);
+          broadcastUpdate(ws_msg.dump());
+
+          return crow::response(201, json);
+        }
+
+        return crow::response(500, "Failed to create tag (name may already exist)");
+      });
+
+  // Update a tag
+  CROW_ROUTE(app_, "/api/tags/<int>")
+      .methods("PUT"_method)([](const crow::request &req, int id) {
+        auto body = crow::json::load(req.body);
+        if (!body) {
+          return crow::response(400, "Invalid JSON");
+        }
+
+        SqliteTagRepository repo;
+        auto existing = repo.findById(id);
+        if (!existing) {
+          return crow::response(404, "Tag not found");
+        }
+
+        domain::Tag tag = *existing;
+        if (body.has("name"))
+          tag.name = body["name"].s();
+        if (body.has("color"))
+          tag.color = body["color"].s();
+
+        if (repo.update(tag)) {
+          crow::json::wvalue json;
+          json["id"] = tag.id;
+          json["name"] = tag.name;
+          json["color"] = tag.color;
+          return crow::response(200, json);
+        }
+
+        return crow::response(500, "Failed to update tag");
+      });
+
+  // Delete a tag
+  CROW_ROUTE(app_, "/api/tags/<int>")
+      .methods("DELETE"_method)([this](int id) {
+        SqliteTagRepository repo;
+        if (repo.remove(id)) {
+          crow::json::wvalue ws_msg;
+          ws_msg["type"] = "tag_deleted";
+          ws_msg["id"] = id;
+          broadcastUpdate(ws_msg.dump());
+
+          return crow::response(200, "Tag deleted");
+        }
+        return crow::response(404, "Tag not found");
+      });
+
+  // Add tag to wishlist item
+  CROW_ROUTE(app_, "/api/wishlist/<int>/tags/<int>")
+      .methods("POST"_method)([this](int item_id, int tag_id) {
+        SqliteTagRepository repo;
+        if (repo.addTagToItem(tag_id, item_id, "wishlist")) {
+          crow::json::wvalue ws_msg;
+          ws_msg["type"] = "wishlist_tag_added";
+          ws_msg["item_id"] = item_id;
+          ws_msg["tag_id"] = tag_id;
+          broadcastUpdate(ws_msg.dump());
+
+          return crow::response(200, "Tag added to item");
+        }
+        return crow::response(500, "Failed to add tag");
+      });
+
+  // Remove tag from wishlist item
+  CROW_ROUTE(app_, "/api/wishlist/<int>/tags/<int>")
+      .methods("DELETE"_method)([this](int item_id, int tag_id) {
+        SqliteTagRepository repo;
+        if (repo.removeTagFromItem(tag_id, item_id, "wishlist")) {
+          crow::json::wvalue ws_msg;
+          ws_msg["type"] = "wishlist_tag_removed";
+          ws_msg["item_id"] = item_id;
+          ws_msg["tag_id"] = tag_id;
+          broadcastUpdate(ws_msg.dump());
+
+          return crow::response(200, "Tag removed from item");
+        }
+        return crow::response(500, "Failed to remove tag");
+      });
+
+  // Add tag to collection item
+  CROW_ROUTE(app_, "/api/collection/<int>/tags/<int>")
+      .methods("POST"_method)([this](int item_id, int tag_id) {
+        SqliteTagRepository repo;
+        if (repo.addTagToItem(tag_id, item_id, "collection")) {
+          crow::json::wvalue ws_msg;
+          ws_msg["type"] = "collection_tag_added";
+          ws_msg["item_id"] = item_id;
+          ws_msg["tag_id"] = tag_id;
+          broadcastUpdate(ws_msg.dump());
+
+          return crow::response(200, "Tag added to item");
+        }
+        return crow::response(500, "Failed to add tag");
+      });
+
+  // Remove tag from collection item
+  CROW_ROUTE(app_, "/api/collection/<int>/tags/<int>")
+      .methods("DELETE"_method)([this](int item_id, int tag_id) {
+        SqliteTagRepository repo;
+        if (repo.removeTagFromItem(tag_id, item_id, "collection")) {
+          crow::json::wvalue ws_msg;
+          ws_msg["type"] = "collection_tag_removed";
+          ws_msg["item_id"] = item_id;
+          ws_msg["tag_id"] = tag_id;
+          broadcastUpdate(ws_msg.dump());
+
+          return crow::response(200, "Tag removed from item");
+        }
+        return crow::response(500, "Failed to remove tag");
       });
 }
 
@@ -875,6 +1089,31 @@ WebFrontend::wishlistItemToJson(const domain::WishlistItem &item) {
   json["title_locked"] = item.title_locked;
   json["created_at"] = timePointToString(item.created_at);
   json["last_checked"] = timePointToString(item.last_checked);
+
+  // TMDb/IMDb integration
+  json["tmdb_id"] = item.tmdb_id;
+  json["imdb_id"] = item.imdb_id;
+  json["tmdb_rating"] = item.tmdb_rating;
+  json["trailer_key"] = item.trailer_key;
+
+  // Edition & bonus features
+  json["edition_type"] = item.edition_type;
+  json["has_slipcover"] = item.has_slipcover;
+  json["has_digital_copy"] = item.has_digital_copy;
+  json["bonus_features"] = item.bonus_features;
+
+  // Get tags for this item
+  SqliteTagRepository tag_repo;
+  auto tags = tag_repo.getTagsForItem(item.id, "wishlist");
+  json["tags"] = crow::json::wvalue::list();
+  for (size_t i = 0; i < tags.size(); ++i) {
+    crow::json::wvalue tag_json;
+    tag_json["id"] = tags[i].id;
+    tag_json["name"] = tags[i].name;
+    tag_json["color"] = tags[i].color;
+    json["tags"][i] = std::move(tag_json);
+  }
+
   return json;
 }
 
@@ -892,6 +1131,31 @@ WebFrontend::collectionItemToJson(const domain::CollectionItem &item) {
   json["notes"] = item.notes;
   json["purchased_at"] = timePointToString(item.purchased_at);
   json["added_at"] = timePointToString(item.added_at);
+
+  // TMDb/IMDb integration
+  json["tmdb_id"] = item.tmdb_id;
+  json["imdb_id"] = item.imdb_id;
+  json["tmdb_rating"] = item.tmdb_rating;
+  json["trailer_key"] = item.trailer_key;
+
+  // Edition & bonus features
+  json["edition_type"] = item.edition_type;
+  json["has_slipcover"] = item.has_slipcover;
+  json["has_digital_copy"] = item.has_digital_copy;
+  json["bonus_features"] = item.bonus_features;
+
+  // Get tags for this item
+  SqliteTagRepository tag_repo;
+  auto tags = tag_repo.getTagsForItem(item.id, "collection");
+  json["tags"] = crow::json::wvalue::list();
+  for (size_t i = 0; i < tags.size(); ++i) {
+    crow::json::wvalue tag_json;
+    tag_json["id"] = tags[i].id;
+    tag_json["name"] = tags[i].name;
+    tag_json["color"] = tags[i].color;
+    json["tags"][i] = std::move(tag_json);
+  }
+
   return json;
 }
 
