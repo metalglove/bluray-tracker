@@ -104,6 +104,17 @@ WebFrontend::WebFrontend(std::shared_ptr<application::Scheduler> scheduler)
   setupRoutes();
 }
 
+WebFrontend::~WebFrontend() {
+  // Join all background threads before destruction
+  std::lock_guard<std::mutex> lock(threads_mutex_);
+  for (auto& thread : background_threads_) {
+    if (thread.joinable()) {
+      thread.join();
+    }
+  }
+  Logger::instance().debug("All background threads joined");
+}
+
 void WebFrontend::run(int port) {
   Logger::instance().info(fmt::format("Starting web server on port {}", port));
   app_.port(port).multithreaded().run();
@@ -112,6 +123,20 @@ void WebFrontend::run(int port) {
 void WebFrontend::stop() {
   app_.stop();
   Logger::instance().info("Web server stopped");
+}
+
+void WebFrontend::cleanupFinishedThreads() {
+  std::lock_guard<std::mutex> lock(threads_mutex_);
+  background_threads_.erase(
+      std::remove_if(background_threads_.begin(), background_threads_.end(),
+                     [](std::thread& t) {
+                       if (t.joinable()) {
+                         // Try to join if possible, otherwise keep it
+                         return false;
+                       }
+                       return true;
+                     }),
+      background_threads_.end());
 }
 
 void WebFrontend::broadcastUpdate(const std::string &message) {
@@ -1067,13 +1092,26 @@ void WebFrontend::setupEnrichmentRoutes() {
 
           return crow::response(200, response);
         } else {
-          // Return failure response
+          // Return failure response with appropriate status code
           crow::json::wvalue error_response;
           error_response["success"] = false;
           error_response["error"] = result.error_message;
           error_response["confidence"] = result.confidence_score;
 
-          return crow::response(200, error_response);
+          // Determine appropriate HTTP status code
+          int status_code = 500; // Default to internal server error
+          if (result.error_message.find("not found") != std::string::npos ||
+              result.error_message.find("No TMDb results") != std::string::npos) {
+            status_code = 404; // Not found
+          } else if (result.error_message.find("confidence") != std::string::npos ||
+                     result.error_message.find("No confident match") != std::string::npos) {
+            status_code = 400; // Bad request - low confidence
+          } else if (result.error_message.find("rate limit") != std::string::npos ||
+                     result.error_message.find("unavailable") != std::string::npos) {
+            status_code = 503; // Service unavailable
+          }
+
+          return crow::response(status_code, error_response);
         }
       });
 
@@ -1132,13 +1170,26 @@ void WebFrontend::setupEnrichmentRoutes() {
 
           return crow::response(200, response);
         } else {
-          // Return failure response
+          // Return failure response with appropriate status code
           crow::json::wvalue error_response;
           error_response["success"] = false;
           error_response["error"] = result.error_message;
           error_response["confidence"] = result.confidence_score;
 
-          return crow::response(200, error_response);
+          // Determine appropriate HTTP status code
+          int status_code = 500; // Default to internal server error
+          if (result.error_message.find("not found") != std::string::npos ||
+              result.error_message.find("No TMDb results") != std::string::npos) {
+            status_code = 404; // Not found
+          } else if (result.error_message.find("confidence") != std::string::npos ||
+                     result.error_message.find("No confident match") != std::string::npos) {
+            status_code = 400; // Bad request - low confidence
+          } else if (result.error_message.find("rate limit") != std::string::npos ||
+                     result.error_message.find("unavailable") != std::string::npos) {
+            status_code = 503; // Service unavailable
+          }
+
+          return crow::response(status_code, error_response);
         }
       });
 
@@ -1167,42 +1218,47 @@ void WebFrontend::setupEnrichmentRoutes() {
           item_ids.push_back(ids_array[i].i());
         }
 
-        // Launch async enrichment in background thread
-        std::thread([this, item_type, item_ids]() {
-          application::enrichment::TmdbEnrichmentService service;
+        // Launch async enrichment in managed background thread
+        {
+          std::lock_guard<std::mutex> lock(threads_mutex_);
+          cleanupFinishedThreads(); // Clean up any completed threads
+          
+          background_threads_.emplace_back([this, item_type, item_ids]() {
+            application::enrichment::TmdbEnrichmentService service;
 
-          auto progress_callback =
-              [this](const application::enrichment::BulkEnrichmentProgress
-                         &progress) {
-                // Broadcast progress via WebSocket
-                crow::json::wvalue ws_msg;
-                ws_msg["type"] = "enrichment_progress";
-                ws_msg["processed"] = progress.processed;
-                ws_msg["total"] = progress.total;
-                ws_msg["successful"] = progress.successful;
-                ws_msg["failed"] = progress.failed;
-                ws_msg["is_active"] = progress.is_active;
-                broadcastUpdate(ws_msg.dump());
-              };
+            auto progress_callback =
+                [this](const application::enrichment::BulkEnrichmentProgress
+                           &progress) {
+                  // Broadcast progress via WebSocket
+                  crow::json::wvalue ws_msg;
+                  ws_msg["type"] = "enrichment_progress";
+                  ws_msg["processed"] = progress.processed;
+                  ws_msg["total"] = progress.total;
+                  ws_msg["successful"] = progress.successful;
+                  ws_msg["failed"] = progress.failed;
+                  ws_msg["is_active"] = progress.is_active;
+                  broadcastUpdate(ws_msg.dump());
+                };
 
-          application::enrichment::BulkEnrichmentProgress final_progress;
+            application::enrichment::BulkEnrichmentProgress final_progress;
 
-          if (item_type == "wishlist") {
-            final_progress =
-                service.enrichMultipleWishlistItems(item_ids, progress_callback);
-          } else if (item_type == "collection") {
-            final_progress = service.enrichMultipleCollectionItems(
-                item_ids, progress_callback);
-          }
+            if (item_type == "wishlist") {
+              final_progress =
+                  service.enrichMultipleWishlistItems(item_ids, progress_callback);
+            } else if (item_type == "collection") {
+              final_progress = service.enrichMultipleCollectionItems(
+                  item_ids, progress_callback);
+            }
 
-          // Broadcast completion
-          crow::json::wvalue ws_msg;
-          ws_msg["type"] = "enrichment_completed";
-          ws_msg["processed"] = final_progress.processed;
-          ws_msg["successful"] = final_progress.successful;
-          ws_msg["failed"] = final_progress.failed;
-          broadcastUpdate(ws_msg.dump());
-        }).detach();
+            // Broadcast completion
+            crow::json::wvalue ws_msg;
+            ws_msg["type"] = "enrichment_completed";
+            ws_msg["processed"] = final_progress.processed;
+            ws_msg["successful"] = final_progress.successful;
+            ws_msg["failed"] = final_progress.failed;
+            broadcastUpdate(ws_msg.dump());
+          });
+        }
 
         // Return immediate response
         crow::json::wvalue response;
@@ -1239,30 +1295,55 @@ void WebFrontend::setupEnrichmentRoutes() {
 
         // Find all items with tmdb_id = 0
         std::vector<int> unenriched_ids;
+        const int PAGE_SIZE = 500;
 
         if (item_type == "wishlist") {
           SqliteWishlistRepository repo;
           domain::PaginationParams params;
           params.page = 1;
-          params.page_size = 10000; // Get all items
+          params.page_size = PAGE_SIZE;
 
-          auto result = repo.findAll(params);
-          for (const auto &item : result.items) {
-            if (item.tmdb_id == 0) {
-              unenriched_ids.push_back(item.id);
+          while (true) {
+            auto result = repo.findAll(params);
+            if (result.items.empty()) {
+              break;
             }
+
+            for (const auto &item : result.items) {
+              if (item.tmdb_id == 0) {
+                unenriched_ids.push_back(item.id);
+              }
+            }
+
+            if (static_cast<int>(result.items.size()) < params.page_size) {
+              break;
+            }
+
+            ++params.page;
           }
         } else if (item_type == "collection") {
           SqliteCollectionRepository repo;
           domain::PaginationParams params;
           params.page = 1;
-          params.page_size = 10000; // Get all items
+          params.page_size = PAGE_SIZE;
 
-          auto result = repo.findAll(params);
-          for (const auto &item : result.items) {
-            if (item.tmdb_id == 0) {
-              unenriched_ids.push_back(item.id);
+          while (true) {
+            auto result = repo.findAll(params);
+            if (result.items.empty()) {
+              break;
             }
+
+            for (const auto &item : result.items) {
+              if (item.tmdb_id == 0) {
+                unenriched_ids.push_back(item.id);
+              }
+            }
+
+            if (static_cast<int>(result.items.size()) < params.page_size) {
+              break;
+            }
+
+            ++params.page;
           }
         }
 
@@ -1274,41 +1355,46 @@ void WebFrontend::setupEnrichmentRoutes() {
           return crow::response(200, response);
         }
 
-        // Launch async enrichment
-        std::thread([this, item_type, unenriched_ids]() {
-          application::enrichment::TmdbEnrichmentService service;
+        // Launch async enrichment in managed background thread
+        {
+          std::lock_guard<std::mutex> lock(threads_mutex_);
+          cleanupFinishedThreads(); // Clean up any completed threads
+          
+          background_threads_.emplace_back([this, item_type, unenriched_ids]() {
+            application::enrichment::TmdbEnrichmentService service;
 
-          auto progress_callback =
-              [this](const application::enrichment::BulkEnrichmentProgress
-                         &progress) {
-                crow::json::wvalue ws_msg;
-                ws_msg["type"] = "enrichment_progress";
-                ws_msg["processed"] = progress.processed;
-                ws_msg["total"] = progress.total;
-                ws_msg["successful"] = progress.successful;
-                ws_msg["failed"] = progress.failed;
-                ws_msg["is_active"] = progress.is_active;
-                broadcastUpdate(ws_msg.dump());
-              };
+            auto progress_callback =
+                [this](const application::enrichment::BulkEnrichmentProgress
+                           &progress) {
+                  crow::json::wvalue ws_msg;
+                  ws_msg["type"] = "enrichment_progress";
+                  ws_msg["processed"] = progress.processed;
+                  ws_msg["total"] = progress.total;
+                  ws_msg["successful"] = progress.successful;
+                  ws_msg["failed"] = progress.failed;
+                  ws_msg["is_active"] = progress.is_active;
+                  broadcastUpdate(ws_msg.dump());
+                };
 
-          application::enrichment::BulkEnrichmentProgress final_progress;
+            application::enrichment::BulkEnrichmentProgress final_progress;
 
-          if (item_type == "wishlist") {
-            final_progress = service.enrichMultipleWishlistItems(unenriched_ids,
-                                                                  progress_callback);
-          } else if (item_type == "collection") {
-            final_progress = service.enrichMultipleCollectionItems(
-                unenriched_ids, progress_callback);
-          }
+            if (item_type == "wishlist") {
+              final_progress = service.enrichMultipleWishlistItems(unenriched_ids,
+                                                                    progress_callback);
+            } else if (item_type == "collection") {
+              final_progress = service.enrichMultipleCollectionItems(
+                  unenriched_ids, progress_callback);
+            }
 
-          // Broadcast completion
-          crow::json::wvalue ws_msg;
-          ws_msg["type"] = "enrichment_completed";
-          ws_msg["processed"] = final_progress.processed;
-          ws_msg["successful"] = final_progress.successful;
-          ws_msg["failed"] = final_progress.failed;
-          broadcastUpdate(ws_msg.dump());
-        }).detach();
+            // Broadcast completion
+            crow::json::wvalue ws_msg;
+            ws_msg["type"] = "enrichment_completed";
+            ws_msg["processed"] = final_progress.processed;
+            ws_msg["successful"] = final_progress.successful;
+            ws_msg["failed"] = final_progress.failed;
+            broadcastUpdate(ws_msg.dump());
+          });
+        }
 
         crow::json::wvalue response;
         response["started"] = true;
@@ -1344,7 +1430,7 @@ void WebFrontend::setupSettingsRoutes() {
 
   // Update settings
   CROW_ROUTE(app_, "/api/settings")
-      .methods("PUT"_method)([](const crow::request &req) {
+      .methods("PUT"_method, "POST"_method)([](const crow::request &req) {
         auto body = crow::json::load(req.body);
         if (!body) {
           return crow::response(400, "Invalid JSON");

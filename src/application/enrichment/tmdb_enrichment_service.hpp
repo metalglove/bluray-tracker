@@ -60,6 +60,16 @@ public:
         int year_hint = 0
     );
 
+    /**
+     * Extract year from title if present (e.g., "Movie (2023)" -> 2023)
+     * @param title Title possibly containing year
+     * @return Extracted year or 0 if not found
+     */
+    static int extractYearFromTitle(std::string_view title);
+
+    // Minimum confidence threshold for accepting a match
+    static constexpr double MIN_CONFIDENCE_THRESHOLD = 0.7;
+
 private:
     /**
      * Calculate similarity between two titles using Levenshtein distance
@@ -76,13 +86,6 @@ private:
      * @return Normalized title
      */
     static std::string normalizeTitle(std::string_view title);
-
-    /**
-     * Extract year from title if present (e.g., "Movie (2023)" -> 2023)
-     * @param title Title possibly containing year
-     * @return Extracted year or 0 if not found
-     */
-    static int extractYearFromTitle(std::string_view title);
 
     /**
      * Calculate Levenshtein distance between two strings
@@ -104,9 +107,6 @@ private:
         std::string_view original_title,
         int year_hint
     );
-
-    // Minimum confidence threshold for accepting a match
-    static constexpr double MIN_CONFIDENCE_THRESHOLD = 0.7;
 };
 
 /**
@@ -228,7 +228,8 @@ private:
 
     std::unique_ptr<infrastructure::TmdbClient> client_;
     BulkEnrichmentProgress bulk_progress_;
-    mutable std::mutex mutex_;
+    mutable std::mutex progress_mutex_;  // Separate mutex for progress queries
+    mutable std::mutex operation_mutex_; // Mutex for operation control
 };
 
 } // namespace bluray::application::enrichment
