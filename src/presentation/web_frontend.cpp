@@ -798,69 +798,51 @@ void WebFrontend::setupTagRoutes() {
         return crow::response(404, "Tag not found");
       });
 
+  // Generic handler factory for adding/removing tags to/from items
+  auto createTagAssignmentHandler = [this](const std::string &item_type, bool is_add) {
+    return [this, item_type, is_add](int item_id, int tag_id) {
+      SqliteTagRepository repo;
+      bool success = false;
+      if (is_add) {
+        success = repo.addTagToItem(tag_id, item_id, item_type);
+      } else {
+        success = repo.removeTagFromItem(tag_id, item_id, item_type);
+      }
+
+      if (success) {
+        crow::json::wvalue ws_msg;
+        ws_msg["type"] =
+            fmt::format("{}_tag_{}", item_type, is_add ? "added" : "removed");
+        ws_msg["item_id"] = item_id;
+        ws_msg["tag_id"] = tag_id;
+        broadcastUpdate(ws_msg.dump());
+
+        const char *success_message =
+            is_add ? "Tag added to item" : "Tag removed from item";
+        return crow::response(200, success_message);
+      }
+
+      const char *failure_message =
+          is_add ? "Failed to add tag" : "Failed to remove tag";
+      return crow::response(500, failure_message);
+    };
+  };
+
   // Add tag to wishlist item
   CROW_ROUTE(app_, "/api/wishlist/<int>/tags/<int>")
-      .methods("POST"_method)([this](int item_id, int tag_id) {
-        SqliteTagRepository repo;
-        if (repo.addTagToItem(tag_id, item_id, "wishlist")) {
-          crow::json::wvalue ws_msg;
-          ws_msg["type"] = "wishlist_tag_added";
-          ws_msg["item_id"] = item_id;
-          ws_msg["tag_id"] = tag_id;
-          broadcastUpdate(ws_msg.dump());
-
-          return crow::response(200, "Tag added to item");
-        }
-        return crow::response(500, "Failed to add tag");
-      });
+      .methods("POST"_method)(createTagAssignmentHandler("wishlist", true));
 
   // Remove tag from wishlist item
   CROW_ROUTE(app_, "/api/wishlist/<int>/tags/<int>")
-      .methods("DELETE"_method)([this](int item_id, int tag_id) {
-        SqliteTagRepository repo;
-        if (repo.removeTagFromItem(tag_id, item_id, "wishlist")) {
-          crow::json::wvalue ws_msg;
-          ws_msg["type"] = "wishlist_tag_removed";
-          ws_msg["item_id"] = item_id;
-          ws_msg["tag_id"] = tag_id;
-          broadcastUpdate(ws_msg.dump());
-
-          return crow::response(200, "Tag removed from item");
-        }
-        return crow::response(500, "Failed to remove tag");
-      });
+      .methods("DELETE"_method)(createTagAssignmentHandler("wishlist", false));
 
   // Add tag to collection item
   CROW_ROUTE(app_, "/api/collection/<int>/tags/<int>")
-      .methods("POST"_method)([this](int item_id, int tag_id) {
-        SqliteTagRepository repo;
-        if (repo.addTagToItem(tag_id, item_id, "collection")) {
-          crow::json::wvalue ws_msg;
-          ws_msg["type"] = "collection_tag_added";
-          ws_msg["item_id"] = item_id;
-          ws_msg["tag_id"] = tag_id;
-          broadcastUpdate(ws_msg.dump());
-
-          return crow::response(200, "Tag added to item");
-        }
-        return crow::response(500, "Failed to add tag");
-      });
+      .methods("POST"_method)(createTagAssignmentHandler("collection", true));
 
   // Remove tag from collection item
   CROW_ROUTE(app_, "/api/collection/<int>/tags/<int>")
-      .methods("DELETE"_method)([this](int item_id, int tag_id) {
-        SqliteTagRepository repo;
-        if (repo.removeTagFromItem(tag_id, item_id, "collection")) {
-          crow::json::wvalue ws_msg;
-          ws_msg["type"] = "collection_tag_removed";
-          ws_msg["item_id"] = item_id;
-          ws_msg["tag_id"] = tag_id;
-          broadcastUpdate(ws_msg.dump());
-
-          return crow::response(200, "Tag removed from item");
-        }
-        return crow::response(500, "Failed to remove tag");
-      });
+      .methods("DELETE"_method)(createTagAssignmentHandler("collection", false));
 }
 
 void WebFrontend::setupActionRoutes() {
