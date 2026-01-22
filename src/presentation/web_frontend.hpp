@@ -41,6 +41,7 @@ private:
   void setupReleaseCalendarRoutes();
   void setupTagRoutes();
   void setupActionRoutes();
+  void setupEnrichmentRoutes();
   void setupStaticRoutes();
   void setupWebSocketRoute();
   void setupSettingsRoutes();
