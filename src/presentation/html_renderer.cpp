@@ -1,6 +1,9 @@
 #include "html_renderer.hpp"
+#include "../infrastructure/input_validation.hpp"
 
 namespace bluray::presentation {
+
+using namespace infrastructure;
 
 std::string HtmlRenderer::renderSPA() {
   std::string html = renderHead();
@@ -1418,6 +1421,15 @@ std::string HtmlRenderer::renderScripts() {
                 .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Remove control characters
         }
 
+        // Validate hex color and return sanitized value
+        function sanitizeColor(color, defaultColor = '#667eea') {
+            if (!color || typeof color !== 'string') return defaultColor;
+            if (!/^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$|^#[0-9A-Fa-f]{8}$/.test(color)) {
+                return defaultColor;
+            }
+            return color;
+        }
+
         // Navigation
         function setupNavigation() {
             document.querySelectorAll('.nav-item').forEach(item => {
@@ -1808,14 +1820,14 @@ std::string HtmlRenderer::renderScripts() {
                              class="item-image" onerror="this.src='https://placehold.co/60x90?text=No+Img'">
                     </td>
                     <td>
-                        <div style="font-weight: 600;">${item.title || 'Loading title...'}</div>
+                        <div style="font-weight: 600;">${escapeHtml(item.title || 'Loading title...')}</div>
                         <div style="font-size: 0.8rem; color: var(--text-muted);">
                             <a href="${item.url}" target="_blank" style="color: var(--primary); text-decoration: none;">
-                                🔗 ${new URL(item.url).hostname}
+                                🔗 ${escapeHtml(new URL(item.url).hostname)}
                             </a>
                         </div>
                         ${item.tmdb_rating > 0 ? `<div style="margin-top: 0.25rem;"><span class="badge" style="background: ${item.tmdb_rating >= 7 ? 'var(--success)' : item.tmdb_rating >= 5 ? 'var(--warning)' : 'var(--danger)'}; color: white;">⭐ ${item.tmdb_rating.toFixed(1)}</span></div>` : ''}
-                        ${item.tags && item.tags.length > 0 ? `<div style="margin-top: 0.25rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">${item.tags.map(tag => `<span class="badge" style="background: ${tag.color}; color: white; font-size: 0.65rem;">${tag.name}</span>`).join('')}</div>` : ''}
+                        ${item.tags && item.tags.length > 0 ? `<div style="margin-top: 0.25rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">${item.tags.map(tag => `<span class="badge" style="background: ${sanitizeColor(tag.color)}; color: white; font-size: 0.65rem;">${escapeHtml(tag.name)}</span>`).join('')}</div>` : ''}
                     </td>
                     <td>
                         <div class="stat-value" style="font-size: 1.2rem;">€${item.current_price.toFixed(2)}</div>
@@ -1835,14 +1847,14 @@ std::string HtmlRenderer::renderScripts() {
                      <td>
                         <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
                              ${item.is_uhd_4k ? '<span class="badge badge-warning">4K</span>' : ''}
-                             ${item.edition_type ? `<span class="badge badge-info" style="font-size: 0.65rem;">${item.edition_type}</span>` : ''}
+                             ${item.edition_type ? `<span class="badge badge-info" style="font-size: 0.65rem;">${escapeHtml(item.edition_type)}</span>` : ''}
                              ${item.has_slipcover ? '<span class="badge" style="background: #8b5cf6; color: white; font-size: 0.65rem;">Slip</span>' : ''}
                              ${item.has_digital_copy ? '<span class="badge" style="background: #06b6d4; color: white; font-size: 0.65rem;">Digital</span>' : ''}
                         </div>
                     </td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
-                            ${item.trailer_key ? `<button class="btn btn-secondary" onclick="openTrailer('${item.trailer_key}')" title="Watch Trailer">🎬</button>` : ''}
+                            ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
                             <button class="btn btn-secondary" onclick="openEditWishlistModal(${item.id})">✏️</button>
                              <button class="btn btn-info" onclick="openPriceHistory(${item.id})">📈</button>
                             <button class="btn btn-danger" onclick="deleteWishlistItem(${item.id})">🗑️</button>
@@ -1915,21 +1927,21 @@ std::string HtmlRenderer::renderScripts() {
                         </div>
                      </td>
                      <td>
-                         <div style="font-weight: 600;">${item.title}</div>
+                         <div style="font-weight: 600;">${escapeHtml(item.title)}</div>
                          <div style="font-size: 0.8rem; color: var(--text-muted);">
                             <a href="${item.url}" target="_blank" style="color: var(--primary); text-decoration: none;">
                                 🔗 Source
                             </a>
                         </div>
                         ${item.tmdb_rating > 0 ? `<div style="margin-top: 0.25rem;"><span class="badge" style="background: ${item.tmdb_rating >= 7 ? 'var(--success)' : item.tmdb_rating >= 5 ? 'var(--warning)' : 'var(--danger)'}; color: white;">⭐ ${item.tmdb_rating.toFixed(1)}</span></div>` : ''}
-                        ${item.tags && item.tags.length > 0 ? `<div style="margin-top: 0.25rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">${item.tags.map(tag => `<span class="badge" style="background: ${tag.color}; color: white; font-size: 0.65rem;">${tag.name}</span>`).join('')}</div>` : ''}
+                        ${item.tags && item.tags.length > 0 ? `<div style="margin-top: 0.25rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">${item.tags.map(tag => `<span class="badge" style="background: ${sanitizeColor(tag.color)}; color: white; font-size: 0.65rem;">${escapeHtml(tag.name)}</span>`).join('')}</div>` : ''}
                      </td>
                      <td>
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                             <span class="badge ${item.is_uhd_4k ? 'badge-warning' : 'badge-info'}">
                                 ${item.is_uhd_4k ? '4K UHD' : 'Bluray'}
                             </span>
-                            ${item.edition_type ? `<span class="badge badge-info" style="font-size: 0.65rem;">${item.edition_type}</span>` : ''}
+                            ${item.edition_type ? `<span class="badge badge-info" style="font-size: 0.65rem;">${escapeHtml(item.edition_type)}</span>` : ''}
                             ${item.has_slipcover ? '<span class="badge" style="background: #8b5cf6; color: white; font-size: 0.65rem;">Slip</span>' : ''}
                             ${item.has_digital_copy ? '<span class="badge" style="background: #06b6d4; color: white; font-size: 0.65rem;">Digital</span>' : ''}
                         </div>
@@ -1938,7 +1950,7 @@ std::string HtmlRenderer::renderScripts() {
                      <td>${new Date(item.added_at || new Date()).toLocaleDateString()}</td>
                      <td>
                         <div style="display: flex; gap: 0.5rem;">
-                            ${item.trailer_key ? `<button class="btn btn-secondary" onclick="openTrailer('${item.trailer_key}')" title="Watch Trailer">🎬</button>` : ''}
+                            ${item.trailer_key ? `<button class="btn btn-secondary" data-trailer-key="${escapeHtml(item.trailer_key)}" onclick="openTrailer(this.dataset.trailerKey)" title="Watch Trailer">🎬</button>` : ''}
                             <button class="btn btn-secondary" onclick="editCollectionItem(${item.id})">✏️</button>
                             <button class="btn btn-danger" onclick="deleteCollectionItem(${item.id})">🗑️</button>
                         </div>
@@ -1964,8 +1976,18 @@ std::string HtmlRenderer::renderScripts() {
 
         // Trailer functions
         function openTrailer(trailerKey) {
+            if (!trailerKey) return;
+            
+            // Validate trailer key format (11 characters, alphanumeric with - and _)
+            const keyString = String(trailerKey);
+            const validTrailerKeyPattern = /^[a-zA-Z0-9_-]{11}$/;
+            if (!validTrailerKeyPattern.test(keyString)) {
+                console.error('Invalid trailer key supplied to openTrailer:', keyString);
+                return;
+            }
+
             const iframe = document.getElementById('trailerIframe');
-            iframe.src = `https://www.youtube.com/embed/${trailerKey}?autoplay=1`;
+            iframe.src = `https://www.youtube.com/embed/${keyString}?autoplay=1`;
             document.getElementById('trailerModal').classList.add('active');
         }
 
@@ -2000,7 +2022,7 @@ std::string HtmlRenderer::renderScripts() {
 
             container.innerHTML = allTags.map(tag => `
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 0.5rem;">
-                    <span class="badge" style="background: ${tag.color}; color: white;">${tag.name}</span>
+                    <span class="badge" style="background: ${sanitizeColor(tag.color)}; color: white;">${escapeHtml(tag.name)}</span>
                     <div style="flex: 1;"></div>
                     <button class="btn btn-danger" style="padding: 0.25rem 0.5rem;" onclick="deleteTag(${tag.id})">×</button>
                 </div>
