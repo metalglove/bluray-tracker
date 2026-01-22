@@ -1979,7 +1979,7 @@ std::string HtmlRenderer::renderScripts() {
             if (!trailerKey) return;
             
             // Validate trailer key format (11 characters, alphanumeric with - and _)
-            const keyString = String(trailerKey);
+            const keyString = `${trailerKey}`;
             const validTrailerKeyPattern = /^[a-zA-Z0-9_-]{11}$/;
             if (!validTrailerKeyPattern.test(keyString)) {
                 console.error('Invalid trailer key supplied to openTrailer:', keyString);
