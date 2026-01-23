@@ -830,6 +830,219 @@ std::string HtmlRenderer::renderStyles() {
             font-size: 0.75rem;
         }
 
+        /* View Toggle Styles */
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .view-toggle button {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .view-toggle button.active {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* Card View Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .movie-card {
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .movie-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px var(--shadow);
+        }
+
+        .movie-card-image {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            background: var(--bg-tertiary);
+        }
+
+        .movie-card-content {
+            padding: 1rem;
+        }
+
+        .movie-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .movie-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .movie-card-price {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 0.5rem;
+        }
+
+        .movie-card-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .movie-card-actions button {
+            flex: 1;
+            padding: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        /* Deal Card Styles */
+        .deal-card {
+            position: relative;
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .deal-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px var(--shadow);
+        }
+
+        .deal-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--gradient-danger);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            font-size: 1.25rem;
+            z-index: 10;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .deal-timer {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            z-index: 10;
+        }
+
+        .deal-original-price {
+            text-decoration: line-through;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* Analytics Charts */
+        .chart-container {
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .chart-canvas {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        /* Search Filters */
+        .search-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-chip:hover {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: white;
+        }
+
+        .filter-chip.active {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+        }
+
+        .filter-chip .remove {
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
         @media (max-width: 768px) {
             .release-calendar-grid {
                 grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -838,6 +1051,15 @@ std::string HtmlRenderer::renderStyles() {
 
             .release-card-image {
                 height: 150px;
+            }
+
+            .card-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 1rem;
+            }
+
+            .movie-card-image {
+                height: 350px;
             }
         }
     </style>
@@ -878,6 +1100,14 @@ std::string HtmlRenderer::renderSidebar() {
             <a class="nav-item" data-page="collection">
                 <span class="nav-icon">📀</span>
                 <span>Collection</span>
+            </a>
+            <a class="nav-item" data-page="deals">
+                <span class="nav-icon">🔥</span>
+                <span>Deals</span>
+            </a>
+            <a class="nav-item" data-page="analytics">
+                <span class="nav-icon">📈</span>
+                <span>Analytics</span>
             </a>
             <a class="nav-item" onclick="openTagsModal()">
                 <span class="nav-icon">🏷️</span>
@@ -1018,7 +1248,18 @@ std::string HtmlRenderer::renderMainContent() {
                         </select>
                     </div>
 
-                    <div class="table-container">
+                    <!-- View Toggle -->
+                    <div class="view-toggle">
+                        <button onclick="setWishlistView('table')" id="wishlistViewTable" class="active">
+                            📋 Table
+                        </button>
+                        <button onclick="setWishlistView('cards')" id="wishlistViewCards">
+                            🎬 Cards
+                        </button>
+                    </div>
+
+                    <!-- Table View -->
+                    <div class="table-container" id="wishlistTableView">
                         <table>
                             <thead>
                                 <tr>
@@ -1035,6 +1276,11 @@ std::string HtmlRenderer::renderMainContent() {
                                 <!-- Populated by JS -->
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Card View -->
+                    <div class="card-grid" id="wishlistCardView" style="display: none;">
+                        <!-- Populated by JS -->
                     </div>
 
                     <div class="pagination" id="wishlistPagination">
@@ -1066,7 +1312,18 @@ std::string HtmlRenderer::renderMainContent() {
                         </select>
                     </div>
 
-                    <div class="table-container">
+                    <!-- View Toggle -->
+                    <div class="view-toggle">
+                        <button onclick="setCollectionView('table')" id="collectionViewTable" class="active">
+                            📋 Table
+                        </button>
+                        <button onclick="setCollectionView('cards')" id="collectionViewCards">
+                            🎬 Cards
+                        </button>
+                    </div>
+
+                    <!-- Table View -->
+                    <div class="table-container" id="collectionTableView">
                         <table>
                             <thead>
                                 <tr>
@@ -1084,9 +1341,113 @@ std::string HtmlRenderer::renderMainContent() {
                         </table>
                     </div>
 
+                    <!-- Card View -->
+                    <div class="card-grid" id="collectionCardView" style="display: none;">
+                        <!-- Populated by JS -->
+                    </div>
+
                     <div class="pagination" id="collectionPagination">
                         <!-- Populated by JS -->
                     </div>
+                </div>
+            </div>
+
+            <!-- Deals Page -->
+            <div id="deals-page" class="page-content" style="display: none;">
+                <div class="page-header">
+                    <h2>Hot Deals 🔥</h2>
+                    <p style="color: var(--text-muted);">Best current deals on Blu-ray and UHD 4K</p>
+                </div>
+                
+                <!-- Filters -->
+                <div class="search-filters">
+                    <select class="form-input" id="dealsFormatFilter" onchange="loadDeals()" style="width: auto;">
+                        <option value="">All Formats</option>
+                        <option value="uhd">UHD 4K</option>
+                        <option value="bluray">Blu-ray</option>
+                    </select>
+                    <select class="form-input" id="dealsSourceFilter" onchange="loadDeals()" style="width: auto;">
+                        <option value="">All Sources</option>
+                        <option value="amazon.nl">Amazon.nl</option>
+                        <option value="bol.com">Bol.com</option>
+                    </select>
+                    <select class="form-input" id="dealsDiscountFilter" onchange="loadDeals()" style="width: auto;">
+                        <option value="0">All Discounts</option>
+                        <option value="15">15%+ Off</option>
+                        <option value="25">25%+ Off</option>
+                        <option value="35">35%+ Off</option>
+                        <option value="50">50%+ Off</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="triggerDealsScrape()">
+                        <span>🔄</span> Refresh Deals
+                    </button>
+                </div>
+
+                <!-- Deals Grid -->
+                <div id="dealsLoading" style="display: none; text-align: center; padding: 3rem;">
+                    <div class="spinner" style="width: 3rem; height: 3rem; margin: 0 auto;"></div>
+                    <p style="margin-top: 1rem; color: var(--text-muted);">Loading deals...</p>
+                </div>
+                
+                <div id="dealsEmpty" class="empty-state" style="display: none;">
+                    <div class="empty-icon">🔍</div>
+                    <div class="empty-title">No Deals Found</div>
+                    <p class="empty-text">No active deals match your filters.</p>
+                </div>
+
+                <div class="card-grid" id="dealsGrid"></div>
+
+                <!-- Pagination -->
+                <div class="pagination" id="dealsPagination" style="display: none;"></div>
+            </div>
+
+            <!-- Analytics Page -->
+            <div id="analytics-page" class="page-content" style="display: none;">
+                <div class="page-header">
+                    <h2>Analytics 📈</h2>
+                    <p style="color: var(--text-muted);">Insights into your collection and spending</p>
+                </div>
+
+                <!-- Stats Overview -->
+                <div class="stats-grid" id="analyticsStats">
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-value" id="totalSpent">€0.00</div>
+                        <div class="stat-label">Total Spent</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-value" id="avgPrice">€0.00</div>
+                        <div class="stat-label">Average Price</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-value" id="wishlistValue">€0.00</div>
+                        <div class="stat-label">Wishlist Value</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔥</div>
+                        <div class="stat-value" id="activeDeals">0</div>
+                        <div class="stat-label">Active Deals</div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="chart-container">
+                    <h3 class="chart-title">Format Distribution</h3>
+                    <div class="chart-canvas">
+                        <canvas id="formatChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3 class="chart-title">Price Trends</h3>
+                    <div class="chart-canvas">
+                        <canvas id="trendsChart"></canvas>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 1rem;">
+                        Shows recent price changes for wishlist items with available history.
+                    </p>
                 </div>
             </div>
 
@@ -1481,6 +1842,8 @@ std::string HtmlRenderer::renderScripts() {
                 dashboard: 'Dashboard',
                 wishlist: 'Wishlist',
                 collection: 'My Collection',
+                deals: 'Hot Deals',
+                analytics: 'Analytics',
                 settings: 'Settings'
             };
             document.getElementById('pageTitle').textContent = titles[page];
@@ -1492,6 +1855,8 @@ std::string HtmlRenderer::renderScripts() {
             }
             if (page === 'wishlist') loadWishlist();
             if (page === 'collection') loadCollection();
+            if (page === 'deals') loadDeals();
+            if (page === 'analytics') loadAnalytics();
             if (page === 'settings') loadSettings();
             
             currentPage = page;
@@ -2526,6 +2891,405 @@ std::string HtmlRenderer::renderScripts() {
                     },
                     plugins: {
                         legend: { labels: { color: '#f1f5f9' } }
+                    }
+                }
+            });
+        }
+
+        // View Toggle Functions
+        function setWishlistView(view) {
+            localStorage.setItem('wishlistView', view);
+            document.getElementById('wishlistViewTable').classList.toggle('active', view === 'table');
+            document.getElementById('wishlistViewCards').classList.toggle('active', view === 'cards');
+            document.getElementById('wishlistTableView').style.display = view === 'table' ? 'block' : 'none';
+            document.getElementById('wishlistCardView').style.display = view === 'cards' ? 'block' : 'none';
+            if (view === 'cards' && wishlistData.items.length > 0) {
+                renderWishlistCards();
+            }
+        }
+
+        function setCollectionView(view) {
+            localStorage.setItem('collectionView', view);
+            document.getElementById('collectionViewTable').classList.toggle('active', view === 'table');
+            document.getElementById('collectionViewCards').classList.toggle('active', view === 'cards');
+            document.getElementById('collectionTableView').style.display = view === 'table' ? 'block' : 'none';
+            document.getElementById('collectionCardView').style.display = view === 'cards' ? 'block' : 'none';
+            if (view === 'cards' && collectionData.items.length > 0) {
+                renderCollectionCards();
+            }
+        }
+
+        function renderWishlistCards() {
+            const container = document.getElementById('wishlistCardView');
+            if (!container) return;
+
+            container.innerHTML = wishlistData.items.map(item => {
+                const imageUrl = item.local_image_path 
+                    ? `/cache/${item.local_image_path.split('/').pop()}`
+                    : item.image_url || '';
+                
+                const stockBadge = item.in_stock 
+                    ? '<span class="badge badge-success">In Stock</span>'
+                    : '<span class="badge badge-danger">Out of Stock</span>';
+                
+                const formatBadge = item.is_uhd_4k
+                    ? '<span class="badge" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">UHD 4K</span>'
+                    : '<span class="badge badge-info">Blu-ray</span>';
+
+                const priceStatus = item.current_price <= item.desired_max_price
+                    ? '<span style="color: var(--success);">✓ Below Target</span>'
+                    : '<span style="color: var(--text-muted);">Above Target</span>';
+
+                return `
+                    <div class="movie-card">
+                        ${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="movie-card-image" loading="lazy">` : '<div class="movie-card-image" style="display: flex; align-items: center; justify-content: center; color: var(--text-muted);">No Image</div>'}
+                        <div class="movie-card-content">
+                            <h3 class="movie-card-title">${item.title}</h3>
+                            <div class="movie-card-meta">
+                                ${formatBadge}
+                                ${stockBadge}
+                                <span class="badge" style="background: var(--bg-tertiary);">${item.source}</span>
+                            </div>
+                            <div class="movie-card-price">
+                                €${item.current_price.toFixed(2)}
+                                <div style="font-size: 0.875rem; font-weight: 400; color: var(--text-secondary);">
+                                    Target: €${item.desired_max_price.toFixed(2)} ${priceStatus}
+                                </div>
+                            </div>
+                            <div class="movie-card-actions">
+                                <button class="btn btn-sm btn-primary" onclick="openEditWishlistModal(${item.id})">
+                                    ✏️ Edit
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteWishlistItem(${item.id})">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCollectionCards() {
+            const container = document.getElementById('collectionCardView');
+            if (!container) return;
+
+            container.innerHTML = collectionData.items.map(item => {
+                const imageUrl = item.local_image_path 
+                    ? `/cache/${item.local_image_path.split('/').pop()}`
+                    : item.image_url || '';
+                
+                const formatBadge = item.is_uhd_4k
+                    ? '<span class="badge" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">UHD 4K</span>'
+                    : '<span class="badge badge-info">Blu-ray</span>';
+
+                return `
+                    <div class="movie-card">
+                        ${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="movie-card-image" loading="lazy">` : '<div class="movie-card-image" style="display: flex; align-items: center; justify-content: center; color: var(--text-muted);">No Image</div>'}
+                        <div class="movie-card-content">
+                            <h3 class="movie-card-title">${item.title}</h3>
+                            <div class="movie-card-meta">
+                                ${formatBadge}
+                                <span class="badge" style="background: var(--bg-tertiary);">${item.source}</span>
+                            </div>
+                            <div class="movie-card-price">
+                                €${item.purchase_price.toFixed(2)}
+                                <div style="font-size: 0.875rem; font-weight: 400; color: var(--text-secondary);">
+                                    Added: ${new Date(item.added_at).toLocaleDateString()}
+                                </div>
+                            </div>
+                            ${item.notes ? `<div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">${item.notes}</div>` : ''}
+                            <div class="movie-card-actions">
+                                <button class="btn btn-sm btn-danger" onclick="deleteCollectionItem(${item.id})">
+                                    🗑️ Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Deals Functions
+        async function loadDeals(page = 1) {
+            const loadingEl = document.getElementById('dealsLoading');
+            const emptyEl = document.getElementById('dealsEmpty');
+            const gridEl = document.getElementById('dealsGrid');
+
+            try {
+                if (loadingEl) loadingEl.style.display = 'block';
+                if (emptyEl) emptyEl.style.display = 'none';
+                if (gridEl) gridEl.innerHTML = '';
+
+                const formatFilter = document.getElementById('dealsFormatFilter')?.value || '';
+                const sourceFilter = document.getElementById('dealsSourceFilter')?.value || '';
+                const discountFilter = document.getElementById('dealsDiscountFilter')?.value || '0';
+
+                let url = `/api/deals?page=${page}&size=20`;
+                if (formatFilter === 'uhd') url += '&only_4k=true';
+                if (sourceFilter) url += `&source=${sourceFilter}`;
+                if (discountFilter !== '0') url += `&min_discount=${discountFilter}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (loadingEl) loadingEl.style.display = 'none';
+
+                if (data.items.length === 0) {
+                    if (emptyEl) emptyEl.style.display = 'block';
+                    return;
+                }
+
+                renderDeals(data.items);
+                renderDealsPagination(data);
+
+            } catch (error) {
+                console.error('Failed to load deals:', error);
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (emptyEl) {
+                    emptyEl.style.display = 'block';
+                    emptyEl.innerHTML = '<p>Failed to load deals. Please try again later.</p>';
+                }
+            }
+        }
+
+        function renderDeals(deals) {
+            const grid = document.getElementById('dealsGrid');
+            if (!grid) return;
+
+            grid.innerHTML = deals.map(deal => {
+                const imageUrl = deal.local_image_path 
+                    ? `/cache/${deal.local_image_path.split('/').pop()}`
+                    : deal.image_url || '';
+
+                const formatBadge = deal.is_uhd_4k
+                    ? '<span class="badge" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">UHD 4K</span>'
+                    : '<span class="badge badge-info">Blu-ray</span>';
+
+                const timerHTML = deal.remaining_hours >= 0
+                    ? `<div class="deal-timer">⏰ ${formatDealTime(deal.remaining_hours)}</div>`
+                    : '';
+
+                return `
+                    <div class="deal-card movie-card">
+                        <div class="deal-badge">${deal.discount_percentage.toFixed(0)}% OFF</div>
+                        ${timerHTML}
+                        ${imageUrl ? `<img src="${imageUrl}" alt="${deal.title}" class="movie-card-image" loading="lazy">` : '<div class="movie-card-image" style="display: flex; align-items: center; justify-content: center; color: var(--text-muted);">No Image</div>'}
+                        <div class="movie-card-content">
+                            <h3 class="movie-card-title">${deal.title}</h3>
+                            <div class="movie-card-meta">
+                                ${formatBadge}
+                                <span class="badge" style="background: var(--bg-tertiary);">${deal.source}</span>
+                                <span class="badge badge-danger">${deal.deal_type}</span>
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <div class="deal-original-price">Was: €${deal.original_price.toFixed(2)}</div>
+                                <div class="movie-card-price">
+                                    Now: €${deal.deal_price.toFixed(2)}
+                                    <span style="font-size: 0.875rem; font-weight: 400; color: var(--success);">
+                                        Save €${deal.savings.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="movie-card-actions">
+                                <button class="btn btn-sm btn-primary" onclick="window.open('${deal.url}', '_blank')">
+                                    🛒 View Deal
+                                </button>
+                                <button class="btn btn-sm btn-success" onclick="addDealToWishlist('${deal.url}', '${deal.title}', ${deal.deal_price})">
+                                    ⭐ Add
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatDealTime(hours) {
+            if (hours < 0) return 'No expiration';
+            if (hours === 0) return 'Expired';
+            if (hours < 24) return `${hours}h left`;
+            const days = Math.floor(hours / 24);
+            return `${days}d left`;
+        }
+
+        function renderDealsPagination(data) {
+            const pagination = document.getElementById('dealsPagination');
+            if (!pagination || data.total_pages <= 1) {
+                if (pagination) pagination.style.display = 'none';
+                return;
+            }
+
+            pagination.style.display = 'flex';
+            let html = '';
+
+            if (data.has_previous) {
+                html += `<button class="btn btn-sm" onclick="loadDeals(${data.page - 1})">Previous</button>`;
+            }
+
+            html += `<span class="pagination-info">Page ${data.page} of ${data.total_pages}</span>`;
+
+            if (data.has_next) {
+                html += `<button class="btn btn-sm" onclick="loadDeals(${data.page + 1})">Next</button>`;
+            }
+
+            pagination.innerHTML = html;
+        }
+
+        async function triggerDealsScrape() {
+            try {
+                const res = await fetch('/api/deals/scrape', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Deals refreshed! ${data.expired_marked} expired deals marked.`, 'success');
+                    loadDeals();
+                } else {
+                    showToast(`Failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function addDealToWishlist(url, title, price) {
+            try {
+                const res = await fetch('/api/wishlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        title: title,
+                        desired_max_price: price * 0.9 // 10% below deal price
+                    })
+                });
+
+                if (res.ok) {
+                    showToast('Added to wishlist!', 'success');
+                } else {
+                    const error = await res.text();
+                    showToast(`Failed: ${error}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Analytics Functions
+        let formatChart = null;
+        let trendsChart = null;
+
+        async function loadAnalytics() {
+            try {
+                const statsRes = await fetch('/api/analytics/stats');
+                const stats = await statsRes.json();
+
+                document.getElementById('totalSpent').textContent = `€${stats.total_spent.toFixed(2)}`;
+                document.getElementById('avgPrice').textContent = `€${stats.average_price.toFixed(2)}`;
+                document.getElementById('wishlistValue').textContent = `€${stats.wishlist_value.toFixed(2)}`;
+                document.getElementById('activeDeals').textContent = stats.active_deals_count;
+
+                // Load format chart
+                const genresRes = await fetch('/api/analytics/genres');
+                const genres = await genresRes.json();
+                renderFormatChart(genres.formats);
+
+                // Load trends
+                const trendsRes = await fetch('/api/analytics/trends');
+                const trends = await trendsRes.json();
+                renderTrendsChart(trends.items);
+
+            } catch (error) {
+                console.error('Failed to load analytics:', error);
+                showToast('Failed to load analytics', 'error');
+            }
+        }
+
+        function renderFormatChart(formats) {
+            const ctx = document.getElementById('formatChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (formatChart) {
+                formatChart.destroy();
+            }
+
+            formatChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: formats.map(f => f.label),
+                    datasets: [{
+                        data: formats.map(f => f.count),
+                        backgroundColor: ['#f59e0b', '#3b82f6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#f1f5f9', padding: 15, font: { size: 14 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTrendsChart(items) {
+            const ctx = document.getElementById('trendsChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (trendsChart) {
+                trendsChart.destroy();
+            }
+
+            if (items.length === 0) {
+                ctx.canvas.parentElement.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 3rem;">No price trend data available yet. Price history will appear as items are scraped.</p>';
+                return;
+            }
+
+            // Only show items with significant changes
+            const significantItems = items.filter(item => Math.abs(item.price_change_pct) > 5).slice(0, 10);
+
+            if (significantItems.length === 0) {
+                ctx.canvas.parentElement.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 3rem;">No significant price changes detected.</p>';
+                return;
+            }
+
+            trendsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: significantItems.map(item => item.title.substring(0, 30) + (item.title.length > 30 ? '...' : '')),
+                    datasets: [{
+                        label: 'Price Change %',
+                        data: significantItems.map(item => item.price_change_pct),
+                        backgroundColor: significantItems.map(item => 
+                            item.price_change_pct < 0 ? '#10b981' : '#ef4444'
+                        ),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { 
+                                color: '#94a3b8',
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
                     }
                 }
             });

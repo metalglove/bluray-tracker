@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../application/scheduler.hpp"
+#include "../domain/deal.hpp"
 
 #include "html_renderer.hpp"
 #include <crow.h>
@@ -54,6 +55,9 @@ private:
   void setupTagRoutes();
   void setupActionRoutes();
   void setupEnrichmentRoutes();
+  void setupDealsRoutes();
+  void setupSearchRoutes();
+  void setupAnalyticsRoutes();
   void setupStaticRoutes();
   void setupWebSocketRoute();
   void setupSettingsRoutes();
@@ -66,6 +70,7 @@ private:
   crow::json::wvalue collectionItemToJson(const domain::CollectionItem &item);
   crow::json::wvalue
   releaseCalendarItemToJson(const domain::ReleaseCalendarItem &item);
+  crow::json::wvalue dealToJson(const domain::Deal &deal);
   std::string
   timePointToString(const std::chrono::system_clock::time_point &tp);
 
