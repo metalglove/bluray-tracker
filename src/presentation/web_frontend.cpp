@@ -1,11 +1,13 @@
 #include "web_frontend.hpp"
 #include "../application/scraper/scraper.hpp"
 #include "../application/enrichment/tmdb_enrichment_service.hpp"
+#include "../application/deals/deals_service.hpp"
 #include "../infrastructure/config_manager.hpp"
 #include "../infrastructure/database_manager.hpp"
 #include "../infrastructure/input_validation.hpp"
 #include "../infrastructure/logger.hpp"
 #include "../infrastructure/repositories/collection_repository.hpp"
+#include "../infrastructure/repositories/deal_repository.hpp"
 #include "../infrastructure/repositories/price_history_repository.hpp"
 #include "../infrastructure/repositories/release_calendar_repository.hpp"
 #include "../infrastructure/repositories/tag_repository.hpp"
@@ -153,6 +155,9 @@ void WebFrontend::setupRoutes() {
   setupTagRoutes();
   setupActionRoutes();
   setupEnrichmentRoutes();
+  setupDealsRoutes();
+  setupSearchRoutes();
+  setupAnalyticsRoutes();
   setupStaticRoutes();
   setupWebSocketRoute();
   setupSettingsRoutes();
@@ -1629,6 +1634,311 @@ crow::json::wvalue WebFrontend::releaseCalendarItemToJson(
   json["last_updated"] = timePointToString(item.last_updated);
   return json;
 }
+
+crow::json::wvalue WebFrontend::dealToJson(const domain::Deal &deal) {
+  crow::json::wvalue json;
+  json["id"] = deal.id;
+  json["url"] = deal.url;
+  json["title"] = deal.title;
+  json["source"] = deal.source;
+  json["original_price"] = deal.original_price;
+  json["deal_price"] = deal.deal_price;
+  json["discount_percentage"] = deal.discount_percentage;
+  json["deal_type"] = deal.deal_type;
+  json["is_uhd_4k"] = deal.is_uhd_4k;
+  json["image_url"] = deal.image_url;
+  json["local_image_path"] = deal.local_image_path;
+  json["discovered_at"] = timePointToString(deal.discovered_at);
+  json["last_checked"] = timePointToString(deal.last_checked);
+  json["is_active"] = deal.is_active;
+  
+  if (deal.ends_at) {
+    json["ends_at"] = timePointToString(*deal.ends_at);
+    json["remaining_hours"] = deal.getRemainingHours();
+  } else {
+    json["ends_at"] = nullptr;
+    json["remaining_hours"] = -1;
+  }
+  
+  json["savings"] = deal.calculateSavings();
+  json["is_expired"] = deal.isExpired();
+  
+  return json;
+}
+
+void WebFrontend::setupDealsRoutes() {
+  // Get all deals (paginated with filters)
+  CROW_ROUTE(app_, "/api/deals")
+      .methods("GET"_method)([this](const crow::request &req) {
+        DealRepository repo;
+
+        int page = 1;
+        int page_size = 20;
+        bool only_4k = false;
+        std::string source = "";
+        double min_discount = 0.0;
+
+        if (req.url_params.get("page")) {
+          page = std::stoi(req.url_params.get("page"));
+        }
+        if (req.url_params.get("size")) {
+          page_size = std::stoi(req.url_params.get("size"));
+        }
+        if (req.url_params.get("only_4k")) {
+          only_4k = std::string(req.url_params.get("only_4k")) == "true";
+        }
+        if (req.url_params.get("source")) {
+          source = req.url_params.get("source");
+        }
+        if (req.url_params.get("min_discount")) {
+          min_discount = std::stod(req.url_params.get("min_discount"));
+        }
+
+        auto items = repo.getFiltered(only_4k, source, min_discount, page, page_size);
+        int total_count = repo.getFilteredCount(only_4k, source, min_discount);
+
+        crow::json::wvalue response;
+        response["items"] = crow::json::wvalue::list();
+        response["page"] = page;
+        response["page_size"] = page_size;
+        response["total_count"] = total_count;
+        response["total_pages"] = (total_count + page_size - 1) / page_size;
+        response["has_next"] = page * page_size < total_count;
+        response["has_previous"] = page > 1;
+
+        for (size_t i = 0; i < items.size(); ++i) {
+          response["items"][i] = dealToJson(items[i]);
+        }
+
+        return crow::response(200, response);
+      });
+
+  // Get specific deal
+  CROW_ROUTE(app_, "/api/deals/<int>")
+      .methods("GET"_method)([this](int id) {
+        DealRepository repo;
+        auto deal = repo.findById(id);
+
+        if (!deal) {
+          return crow::response(404, "Deal not found");
+        }
+
+        return crow::response(200, dealToJson(*deal));
+      });
+
+  // Trigger deal scraping
+  CROW_ROUTE(app_, "/api/deals/scrape")
+      .methods("POST"_method)([this]() {
+        try {
+          // This would trigger the deal scraper
+          // For now, mark expired deals as inactive
+          DealRepository repo;
+          int marked = repo.markExpiredInactive();
+
+          crow::json::wvalue response;
+          response["success"] = true;
+          response["expired_marked"] = marked;
+          
+          return crow::response(200, response);
+        } catch (const std::exception &e) {
+          crow::json::wvalue response;
+          response["success"] = false;
+          response["error"] = e.what();
+          return crow::response(500, response);
+        }
+      });
+}
+
+void WebFrontend::setupSearchRoutes() {
+  // Advanced search endpoint
+  CROW_ROUTE(app_, "/api/search")
+      .methods("GET"_method)([this](const crow::request &req) {
+        std::string query = req.url_params.get("q") ? req.url_params.get("q") : "";
+        std::string type = req.url_params.get("type") ? req.url_params.get("type") : "all";
+        
+        crow::json::wvalue response;
+        response["results"] = crow::json::wvalue::list();
+        
+        int result_idx = 0;
+
+        // Search wishlist
+        if (type == "all" || type == "wishlist") {
+          SqliteWishlistRepository wishlist_repo;
+          domain::PaginationParams params;
+          params.search_query = query;
+          params.page = 1;
+          params.page_size = 50;
+          auto wishlist_results = wishlist_repo.findAll(params);
+          
+          for (const auto &item : wishlist_results.items) {
+            crow::json::wvalue result = wishlistItemToJson(item);
+            result["result_type"] = "wishlist";
+            response["results"][result_idx++] = std::move(result);
+          }
+        }
+
+        // Search collection
+        if (type == "all" || type == "collection") {
+          SqliteCollectionRepository collection_repo;
+          domain::PaginationParams params;
+          params.search_query = query;
+          params.page = 1;
+          params.page_size = 50;
+          auto collection_results = collection_repo.findAll(params);
+          
+          for (const auto &item : collection_results.items) {
+            crow::json::wvalue result = collectionItemToJson(item);
+            result["result_type"] = "collection";
+            response["results"][result_idx++] = std::move(result);
+          }
+        }
+
+        // Search deals
+        if (type == "all" || type == "deals") {
+          DealRepository deal_repo;
+          auto deals = deal_repo.getAllActive();
+          
+          for (const auto &deal : deals) {
+            // Simple title search filter
+            if (query.empty() || deal.title.find(query) != std::string::npos) {
+              crow::json::wvalue result = dealToJson(deal);
+              result["result_type"] = "deal";
+              response["results"][result_idx++] = std::move(result);
+            }
+          }
+        }
+
+        response["total"] = result_idx;
+        return crow::response(200, response);
+      });
+}
+
+void WebFrontend::setupAnalyticsRoutes() {
+  // Get collection statistics
+  CROW_ROUTE(app_, "/api/analytics/stats")
+      .methods("GET"_method)([]() {
+        SqliteCollectionRepository collection_repo;
+        SqliteWishlistRepository wishlist_repo;
+        DealRepository deal_repo;
+
+        auto collection_items = collection_repo.findAll();
+        auto wishlist_items = wishlist_repo.findAll();
+        auto active_deals = deal_repo.getAllActive();
+
+        // Calculate statistics
+        double total_value = 0.0;
+        double total_spent = 0.0;
+        int uhd_count = 0;
+        int bluray_count = 0;
+
+        for (const auto &item : collection_items) {
+          total_spent += item.purchase_price;
+          if (item.is_uhd_4k) {
+            uhd_count++;
+          } else {
+            bluray_count++;
+          }
+        }
+
+        double avg_price = collection_items.empty() ? 0.0 : total_spent / collection_items.size();
+
+        // Wishlist value (if all bought at current price)
+        double wishlist_value = 0.0;
+        for (const auto &item : wishlist_items) {
+          wishlist_value += item.current_price;
+        }
+
+        crow::json::wvalue response;
+        response["collection_count"] = static_cast<int>(collection_items.size());
+        response["wishlist_count"] = static_cast<int>(wishlist_items.size());
+        response["active_deals_count"] = static_cast<int>(active_deals.size());
+        response["total_spent"] = total_spent;
+        response["average_price"] = avg_price;
+        response["uhd_4k_count"] = uhd_count;
+        response["bluray_count"] = bluray_count;
+        response["wishlist_value"] = wishlist_value;
+
+        return crow::response(200, response);
+      });
+
+  // Get price trends
+  CROW_ROUTE(app_, "/api/analytics/trends")
+      .methods("GET"_method)([]() {
+        PriceHistoryRepository price_repo;
+        SqliteWishlistRepository wishlist_repo;
+
+        auto wishlist_items = wishlist_repo.findAll();
+        
+        crow::json::wvalue response;
+        response["items"] = crow::json::wvalue::list();
+
+        int idx = 0;
+        for (const auto &item : wishlist_items) {
+          auto history = price_repo.getHistory(item.id);
+          if (!history.empty()) {
+            crow::json::wvalue trend;
+            trend["id"] = item.id;
+            trend["title"] = item.title;
+            trend["current_price"] = item.current_price;
+            trend["data_points"] = static_cast<int>(history.size());
+            
+            // Calculate trend (simple: compare first and last)
+            double first_price = history.front().price;
+            double last_price = history.back().price;
+            double change = last_price - first_price;
+            double change_pct = first_price > 0 ? (change / first_price) * 100.0 : 0.0;
+            
+            trend["price_change"] = change;
+            trend["price_change_pct"] = change_pct;
+            trend["trend"] = change < 0 ? "down" : (change > 0 ? "up" : "stable");
+            
+            response["items"][idx++] = std::move(trend);
+          }
+        }
+
+        return crow::response(200, response);
+      });
+
+  // Get genre distribution (requires TMDb data)
+  CROW_ROUTE(app_, "/api/analytics/genres")
+      .methods("GET"_method)([]() {
+        SqliteCollectionRepository collection_repo;
+        
+        auto items = collection_repo.findAll();
+        
+        // For now, just return format distribution since we don't have genre data yet
+        int uhd_count = 0;
+        int bluray_count = 0;
+        
+        for (const auto &item : items) {
+          if (item.is_uhd_4k) {
+            uhd_count++;
+          } else {
+            bluray_count++;
+          }
+        }
+        
+        crow::json::wvalue response;
+        response["formats"] = crow::json::wvalue::list();
+        
+        crow::json::wvalue uhd;
+        uhd["label"] = "UHD 4K";
+        uhd["count"] = uhd_count;
+        uhd["percentage"] = items.empty() ? 0.0 : (uhd_count * 100.0) / items.size();
+        response["formats"][0] = std::move(uhd);
+        
+        crow::json::wvalue bluray;
+        bluray["label"] = "Blu-ray";
+        bluray["count"] = bluray_count;
+        bluray["percentage"] = items.empty() ? 0.0 : (bluray_count * 100.0) / items.size();
+        response["formats"][1] = std::move(bluray);
+        
+        response["note"] = "Genre data requires TMDb integration";
+        
+        return crow::response(200, response);
+      });
+}
+
 
 std::string WebFrontend::renderSPA() { return renderer_->renderSPA(); }
 

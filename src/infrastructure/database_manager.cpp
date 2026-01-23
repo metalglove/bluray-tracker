@@ -208,6 +208,45 @@ void DatabaseManager::createSchema() {
   execute("CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON "
           "item_tags(tag_id)");
 
+  // Deals table for tracking special offers
+  execute(R"(
+        CREATE TABLE IF NOT EXISTS deals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            source TEXT NOT NULL,
+            original_price REAL NOT NULL,
+            deal_price REAL NOT NULL,
+            discount_percentage REAL NOT NULL,
+            deal_type TEXT,
+            ends_at TEXT,
+            is_uhd_4k INTEGER DEFAULT 0,
+            image_url TEXT,
+            local_image_path TEXT,
+            discovered_at TEXT NOT NULL,
+            last_checked TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1
+        )
+    )");
+
+  // Indices for deals
+  execute("CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active)");
+  execute("CREATE INDEX IF NOT EXISTS idx_deals_discount ON "
+          "deals(discount_percentage DESC)");
+  execute("CREATE INDEX IF NOT EXISTS idx_deals_discovered ON "
+          "deals(discovered_at DESC)");
+
+  // Saved searches table
+  execute(R"(
+        CREATE TABLE IF NOT EXISTS saved_searches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            query TEXT NOT NULL,
+            notify_on_new INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+    )");
+
   // Migrations
   try {
     execute("ALTER TABLE wishlist ADD COLUMN title_locked INTEGER NOT NULL "
